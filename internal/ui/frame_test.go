@@ -647,7 +647,29 @@ func TestYank(t *testing.T) {
 	if !strings.Contains(ansi.Strip(a.screen()), "yanked: copy me") {
 		t.Fatal("no flash")
 	}
-	if a, _ = press(t, a, "j"); strings.Contains(ansi.Strip(a.screen()), "yanked") { // next key clears it
-		t.Fatal("flash stayed")
+	t0 := a.now()
+	a.now = func() time.Time { return t0.Add(toastFor) } // the tick drops it after toastFor
+	if next, _ := a.Update(tickMsg{}); strings.Contains(ansi.Strip(next.(App).screen()), "yanked") {
+		t.Fatal("toast stayed after toastFor")
+	}
+}
+
+func TestToastCard(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	a = a.toast("Claude needs your attention", false).toast("send failed", true)
+	v := checkFrame(t, a, 80, 24)
+	rows := strings.Split(ansi.Strip(v), "\n")
+	at := -1
+	for i, r := range rows {
+		if strings.Contains(r, "send failed") {
+			at = i
+		}
+	}
+	if at < 0 || !strings.Contains(rows[at-3], "needs your attention") || !strings.Contains(v, "91m╭") { // 91 = color 9, bright red
+		t.Fatalf("cards:\n%s", ansi.Strip(v)) // newest lowest, the older one above it, error card red
+	}
+	if at != len(rows)-4 { // the lowest card ends just above the modeline
+		t.Fatalf("card row %d of %d", at, len(rows))
 	}
 }

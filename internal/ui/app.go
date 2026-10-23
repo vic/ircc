@@ -95,7 +95,7 @@ type App struct {
 	pickWhat pickKind        // what the picker lists: channels (ctrl+t), lines (/), speakers (S)
 	speaker  string          // S: show only this nick's lines; "" all
 	resumeTo string          // channel to focus once it shows up (the last one of the previous run)
-	flash    string          // one-key message in the footer (yanked ...); the next key clears it
+	toasts   []toast         // notification cards, newest last; the tick drops old ones
 	pq       textinput.Model // picker query (own input: a typed message survives)
 	psel     int             // picker selection, an index in pickList
 	comp     completion      // tab completion state of the INSERT line
@@ -110,7 +110,21 @@ func New(m model.Model, send func(ch, text string) error) App {
 	return App{m: m, in: in, send: send, user: "me", now: time.Now, w: defaultW, h: defaultH, hit: -1}
 }
 
-func (a App) Init() tea.Cmd { return nil }
+// Init starts the 1 s tick: it drops old toasts and keeps the clock current.
+func (a App) Init() tea.Cmd { return tick() }
+
+func tick() tea.Cmd { return tea.Tick(time.Second, func(time.Time) tea.Msg { return tickMsg{} }) }
+
+type tickMsg struct{}
+
+// toastFor is how long a toast shows (jjui default: 4 s).
+const toastFor = 4 * time.Second
+
+type toast struct {
+	text string
+	err  bool
+	at   time.Time
+}
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -136,9 +150,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, a.cmdf(a.m.Current().Name, msg.Cmd)
 	case NoteMsg:
-		if next, err := a.addLine(a.m.Current().Name, msg.L); err == nil {
-			a = next
-		}
+		a = a.toast(msg.L.Text, false) // runtime notes are notifications, not scrollback
+	case tickMsg:
+		now := a.now()
+		a.toasts = slices.DeleteFunc(slices.Clone(a.toasts), func(t toast) bool { return now.Sub(t.at) >= toastFor })
+		return a, tick()
 	case LiteralResultMsg:
 		if msg.Err != nil {
 			a = a.note("literal send failed: " + msg.Err.Error())
@@ -184,7 +200,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
-	a.flash = ""
 	if k == "ctrl+c" {
 		return a, tea.Quit
 	}
@@ -384,10 +399,12 @@ func (a App) runCmd(line string) (tea.Model, tea.Cmd) {
 }
 
 // note adds a dim local line to the current channel.
-func (a App) note(text string) App {
-	if m, err := a.m.AddLine(a.m.Current().Name, model.Line{At: a.now(), Nick: "*", Text: text, Dim: true}); err == nil {
-		a.m = m
-	}
+func (a App) note(text string) App { return a.toast(text, true) }
+
+// toast shows text in a card at the bottom right for toastFor (vic 2026-10-23,
+// like jjui flash messages); err cards are red, others green.
+func (a App) toast(text string, err bool) App {
+	a.toasts = append(slices.Clone(a.toasts), toast{text: text, err: err, at: a.now()})
 	return a
 }
 
@@ -410,9 +427,6 @@ func (a App) inputLine() (label, input, hint string) {
 // footer is the last row outside INSERT: more keys and the toggle states, since
 // there is no input to show (vic 2026-10-23).
 func (a App) footer() string {
-	if a.flash != "" {
-		return fit(cell, " "+dimmed.Render(a.flash), max(a.w, 1))
-	}
 	// states first: on a narrow screen the keys fall off the end (they are in ? help)
 	return fit(cell, " "+keyHint("t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps),
 		"S", "speaker:"+cmp.Or(a.speaker, "all"), "/", "search", "J K", "turns", "O", "reply @", ":", "literal"), max(a.w, 1)) // one row
@@ -435,7 +449,9 @@ func (a App) screen() string {
 		return pickView(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel)
 	}
 	label, input, hint := a.inputLine()
-	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.sides(), a.lines(a.m.Current()), a.wrap(), a.suggest(), hint)
+	screen := render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.sides(), a.lines(a.m.Current()), a.wrap(), a.suggest(), hint)
+	modeline := a.h - len(inputRows(input, a.w, a.h)) - len(a.suggest()) - 1
+	return overlayToasts(screen, a.w, modeline-1, a.toasts) // cards sit just above the modeline
 }
 
 // page is the number of scrollback rows View shows; a long input takes rows from it.
@@ -997,10 +1013,10 @@ func (a App) Channel() string { return a.m.Current().Name }
 func (a App) yank() (tea.Model, tea.Cmd) {
 	ls := a.lines(a.m.Current())
 	if a.hit < 0 || a.hit >= len(ls) {
-		a.flash = "nothing to yank: ↑ selects a line"
+		a = a.toast("nothing to yank: ↑ selects a line", true)
 		return a, nil
 	}
 	text := ls[a.hit].Text
-	a.flash = "yanked: " + strings.ReplaceAll(text, "\n", " ")
+	a = a.toast("yanked: "+strings.ReplaceAll(text, "\n", " "), false)
 	return a, tea.SetClipboard(text)
 }

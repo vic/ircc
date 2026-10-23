@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"ircc/internal/model"
 )
@@ -497,4 +498,35 @@ func (p sidePanes) title(name string, f paneFocus) string {
 		return name
 	}
 	return strings.TrimSpace("▸" + name + " " + p.q)
+}
+
+// toastCards is how many toasts show at once (the newest).
+const toastCards = 3
+
+// overlayToasts draws the newest toasts as cards at the right edge of screen, the
+// lowest card's bottom on row bottom (vic 2026-10-23, after jjui flash messages).
+func overlayToasts(screen string, w, bottom int, ts []toast) string {
+	if len(ts) == 0 || w < minWide {
+		return screen
+	}
+	rows := strings.Split(screen, "\n")
+	maxW := max(w/2, 20)
+	for i := len(ts) - 1; i >= max(len(ts)-toastCards, 0) && bottom >= 0; i-- {
+		color := lipgloss.Color("2")
+		if ts[i].err {
+			color = lipgloss.Color("9")
+		}
+		card := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(color).Padding(0, 1).
+			Width(min(lipgloss.Width(ts[i].text)+4, maxW)).Render(ts[i].text)
+		cl := strings.Split(card, "\n")
+		cw := lipgloss.Width(cl[0])
+		x := max(w-cw-1, 0) // one column from the right edge
+		for j := len(cl) - 1; j >= 0 && bottom >= 0; j-- {
+			if bottom < len(rows) {
+				rows[bottom] = ansi.Cut(rows[bottom], 0, x) + cl[j] + ansi.Cut(rows[bottom], x+cw, w)
+			}
+			bottom--
+		}
+	}
+	return strings.Join(rows, "\n")
 }

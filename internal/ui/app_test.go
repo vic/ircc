@@ -121,7 +121,7 @@ func TestAppCommandMsgAndErrors(t *testing.T) {
 	if cmd != nil || len(log) != 0 {
 		t.Fatalf("cmd %v log %v", cmd, log)
 	}
-	if ls := curLines(a); len(ls) != 1 || !strings.Contains(ls[0].Text, "bogus") {
+	if ls := notes(a); len(ls) != 1 || !strings.Contains(ls[0].Text, "bogus") {
 		t.Fatalf("error line: %+v", ls)
 	}
 	// esc cancels an open : prompt
@@ -183,7 +183,7 @@ func TestAppSendErrorShown(t *testing.T) {
 	a = typeText(t, a, "x")
 	a, cmd := press(t, a, "enter")
 	a = finish(t, a, cmd)
-	ls := curLines(a)
+	ls := notes(a)
 	if len(ls) != 1 || !strings.Contains(ls[0].Text, "send failed") || !strings.Contains(ls[0].Text, "boom") {
 		t.Fatalf("lines %+v", ls) // and no echo of the unsent text
 	}
@@ -205,7 +205,7 @@ func TestAppUnknownChannelLineNoted(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
 	next, _ := a.Update(LineMsg{Ch: "#zz", L: model.Line{Text: "x"}})
-	ls := curLines(next.(App))
+	ls := notes(next.(App))
 	if len(ls) != 1 || !strings.Contains(ls[0].Text, "#zz") {
 		t.Fatalf("lines %+v", ls)
 	}
@@ -388,7 +388,7 @@ func TestAppNoteMsgGoesToFocused(t *testing.T) {
 	a, _ = press(t, a, "g", "t") // focus #b
 	next, _ := a.Update(NoteMsg{L: model.Line{Text: "hello", Dim: true}})
 	a = next.(App)
-	if ls := curLines(a); len(ls) != 1 || ls[0].Text != "hello" {
+	if ls := notes(a); len(ls) != 1 || ls[0].Text != "hello" {
 		t.Fatalf("focused lines %+v", ls)
 	}
 	for _, c := range a.m.Channels() {
@@ -408,7 +408,7 @@ func TestAppLineMsgEmptyChIsUnknown(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
 	next, _ := a.Update(LineMsg{L: model.Line{Text: "x"}}) // no sentinel: "" is an unknown channel
-	ls := curLines(next.(App))
+	ls := notes(next.(App))
 	if len(ls) != 1 || !strings.Contains(ls[0].Text, "unknown channel") || ls[0].Text == "x" {
 		t.Fatalf("lines %+v", ls)
 	}
@@ -418,8 +418,8 @@ func TestAppNoteMsgAnchorsWhenScrolled(t *testing.T) {
 	a := scrollApp(t)
 	a, _ = press(t, a, "k", "k")
 	next, _ := a.Update(NoteMsg{L: model.Line{Text: "n"}})
-	if got := next.(App).off(); got != 3 {
-		t.Fatalf("off %d want 3", got)
+	if got := next.(App).off(); got != 2 { // a note is a toast now: the scrollback and its offset stay
+		t.Fatalf("off %d want 2", got)
 	}
 }
 
@@ -469,8 +469,8 @@ func TestAppCmdMsgCallsHandlerWithFocusedChannel(t *testing.T) {
 	b := newApp(t, &log, nil)
 	next, cmd = b.Update(CmdMsg{c})
 	b = next.(App)
-	if cmd != nil || len(curLines(b)) != 1 {
-		t.Fatalf("no-handler: cmd=%v lines=%+v", cmd, curLines(b))
+	if cmd != nil || len(notes(b)) != 1 {
+		t.Fatalf("no-handler: cmd=%v lines=%+v", cmd, notes(b))
 	}
 }
 
@@ -539,4 +539,13 @@ func TestColonSendsLiteral(t *testing.T) {
 	if len(curLines(a)) != 0 { // no local echo: the transcript shows it
 		t.Fatalf("echo %+v", curLines(a))
 	}
+}
+
+// notes is the toasts as lines: notes and errors show as toasts, not in the scrollback.
+func notes(a App) []model.Line {
+	var out []model.Line
+	for _, t := range a.toasts {
+		out = append(out, model.Line{Text: t.text})
+	}
+	return out
 }
