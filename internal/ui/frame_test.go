@@ -510,3 +510,39 @@ func TestPickerNicks(t *testing.T) {
 		t.Fatalf("channel pick: %s", cur(a))
 	}
 }
+
+func TestLineCursor(t *testing.T) {
+	a := scrollApp(t) // 12 lines in #a, page 6
+	a, _ = press(t, a, "up")
+	if a.hit != 11 || a.off() != 0 || cur(a) != "#a" { // newest line, no scroll, channel kept
+		t.Fatalf("up: hit %d off %d cur %s", a.hit, a.off(), cur(a))
+	}
+	for i := 0; i < 7; i++ {
+		a, _ = press(t, a, "up")
+	}
+	if a.hit != 4 || a.off() != 2 { // scrolled just enough: line 4 is the top row
+		t.Fatalf("up x8: hit %d off %d", a.hit, a.off())
+	}
+	for i := 0; i < 8; i++ {
+		a, _ = press(t, a, "down")
+	}
+	if a.hit != -1 || a.off() != 0 { // down past the newest clears the cursor
+		t.Fatalf("down: hit %d off %d", a.hit, a.off())
+	}
+}
+
+func TestInputCursor(t *testing.T) {
+	if got := withCursor("abc", 1); got != "a"+current.Render("b")+"c" {
+		t.Fatalf("mid %q", got)
+	}
+	if got := withCursor("ab", 2); got != "ab"+current.Render(" ") {
+		t.Fatalf("end %q", got)
+	}
+	var log []sent
+	a, _ := press(t, newApp(t, &log, nil), "i")
+	a = typeText(t, a, "hi")
+	if !strings.Contains(a.screen(), "hi"+current.Render(" ")) {
+		t.Fatal("no cursor on screen")
+	}
+	checkFrame(t, a, a.w, a.h)
+}

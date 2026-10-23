@@ -116,7 +116,7 @@ func TestTUIKeys(t *testing.T) {
 	for _, step := range []struct{ keys, want string }{
 		{"\x0e", "INSERT  #beta"}, {"\x10", "INSERT  #alpha"}, {"\x1b", "NORMAL  #alpha"},
 		{"\x0e", "NORMAL  #beta"}, {"\x10", "NORMAL  #alpha"},
-		{"\x1b[B", "NORMAL  #beta"}, {"\x1b[A", "NORMAL  #alpha"},
+		{"\x1b[A", "NORMAL  #alpha"}, // up selects a line (vic 2026-10-23), the channel stays
 		{":", "> :"}, {"\x1b", "NORMAL  #alpha"}, {"i/join &x\r", "INSERT  &x"},
 	} {
 		type_(step.keys)

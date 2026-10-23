@@ -35,6 +35,8 @@ const (
 	FocusPane
 	NextTurn
 	PrevTurn
+	LineUp
+	LineDown
 	ToggleStamps
 	PickChan
 	ReplyMention
@@ -61,9 +63,13 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: Send}, Insert, ""
 		case "ctrl+t":
 			return Action{Kind: PickChan}, Insert, ""
-		case "up", "ctrl+p":
+		case "up":
+			return Action{Kind: LineUp}, Insert, ""
+		case "down":
+			return Action{Kind: LineDown}, Insert, ""
+		case "ctrl+p":
 			return Action{Kind: PrevChan}, Insert, ""
-		case "down", "ctrl+n":
+		case "ctrl+n":
 			return Action{Kind: NextChan}, Insert, ""
 		case "tab":
 			return Action{Kind: Complete}, Insert, ""
@@ -88,9 +94,13 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: Bottom}, Normal, ""
 		case "ctrl+t":
 			return Action{Kind: PickChan}, Normal, ""
-		case "ctrl+n", "down":
+		case "up":
+			return Action{Kind: LineUp}, Normal, ""
+		case "down":
+			return Action{Kind: LineDown}, Normal, ""
+		case "ctrl+n":
 			return Action{Kind: NextChan}, Normal, ""
-		case "ctrl+p", "up":
+		case "ctrl+p":
 			return Action{Kind: PrevChan}, Normal, ""
 		case "J":
 			return Action{Kind: NextTurn}, Normal, ""

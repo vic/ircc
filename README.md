@@ -24,7 +24,7 @@ Each GitHub release gets Linux binaries (amd64, arm64) from
 
 Start `ircc` in a terminal while one or more Claude sessions run.
 
-1. Every live session is a `#` channel. Use up / down to move between them.
+1. Every live session is a `#` channel. Use `ctrl+t` or `ctrl+n` / `ctrl+p` to move between them.
 2. Press `i`, type a line, and press `Enter` to send it to the session. `Esc` goes back.
 3. Create a room: `/join &review`.
 4. Add sessions to the room: `/invite <nick> &review`. The nick is the channel name
@@ -50,7 +50,7 @@ Press `?` in ircc for all of them.
 
 | key          | action                                                  |
 |--------------|---------------------------------------------------------|
-| up, down     | previous / next channel                                 |
+| up, down     | move the line cursor (ctrl+n, ctrl+p: next / previous channel) |
 | ctrl+t       | pick a channel, or an @nick to mention                  |
 | tab          | focus the channel or nick pane; type to filter          |
 | i            | type a line (`O` starts a reply to the last @mention)   |

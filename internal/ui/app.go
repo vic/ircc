@@ -207,6 +207,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return a, cmd
 		case act.Kind == Scroll:
 			return a.scroll(act), nil
+		case act.Kind == LineUp || act.Kind == LineDown:
+			return a.lineStep(act.Kind == LineDown), nil
 		case act.Kind == PickChan:
 			return a.openPick(false), nil
 		case act.Kind == NextChan || act.Kind == PrevChan:
@@ -255,6 +257,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.stamps, a.offs = !a.stamps, nil // row counts changed
 	case PickChan:
 		return a.openPick(false), nil
+	case LineUp, LineDown:
+		a = a.lineStep(act.Kind == LineDown)
 	case NextTurn, PrevTurn:
 		a = a.turn(act.Kind == NextTurn)
 	case FocusPane:
@@ -380,15 +384,15 @@ func (a App) note(text string) App {
 func (a App) inputLine() (label, input, hint string) {
 	switch {
 	case a.prompt == promptCmd:
-		return "NORMAL", ":" + a.in.Value(), keyHint("enter", "send as is", "esc", "cancel")
+		return "NORMAL", ":" + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send as is", "esc", "cancel")
 	case a.mode == Insert:
-		return "INSERT", a.in.Value(), keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "channel", "C-t", "pick", "esc", "normal")
+		return "INSERT", withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "pick", "esc", "normal")
 	case a.focus == focusChans:
 		return "CHANNELS", "", keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "join", "tab", "nicks", "esc", "chat")
 	case a.focus == focusNicks:
 		return "NICKS", "", keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "mention", "tab", "chat", "esc", "chat")
 	}
-	return "NORMAL", "", keyHint("↑↓", "channel", "tab", "panes", "C-t", "pick", "i", "type", ":", "literal", "?", "help",
+	return "NORMAL", "", keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "pick", "i", "type", ":", "literal", "?", "help",
 		"t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps))
 }
 
@@ -859,4 +863,44 @@ func (a App) sides() sidePanes {
 	chans, _ := a.paneItems(focusChans)
 	nicks, _ := a.paneItems(focusNicks)
 	return sidePanes{chans: chans, nicks: nicks, focus: a.focus, sel: a.fsel, q: a.fq}
+}
+
+// lineStep moves the cursor (the reversed line) one line down (to newer) or up,
+// and scrolls just enough to keep it in view (vic 2026-10-23). Up with no cursor
+// starts at the newest line; down past the newest clears it.
+func (a App) lineStep(down bool) App {
+	ls := a.lines(a.m.Current())
+	switch {
+	case len(ls) == 0:
+		return a
+	case a.hit < 0 || a.hit >= len(ls):
+		if down {
+			return a
+		}
+		a.hit = len(ls) - 1
+	case down && a.hit == len(ls)-1:
+		a.hit = -1
+		return a.setOff(a.m.Current().Name, 0)
+	case down:
+		a.hit++
+	default:
+		a.hit = max(a.hit-1, 0)
+	}
+	w := textWidth(a.w, a.h)
+	after := rowCount(ls[a.hit:], w, a.wrap())   // rows from the cursor line's top to the newest
+	below := after - len(a.wrap()(ls[a.hit], w)) // rows under the cursor line
+	off := min(a.off(), below)                   // its bottom row is on screen
+	off = max(off, after-a.page())               // and its top row
+	return a.setOff(a.m.Current().Name, off)
+}
+
+// withCursor draws the input cursor at rune position pos: that rune reversed, or a
+// reversed space at the end (vic 2026-10-23).
+func withCursor(s string, pos int) string {
+	rs := []rune(s)
+	pos = min(max(pos, 0), len(rs))
+	if pos == len(rs) {
+		return s + current.Render(" ")
+	}
+	return string(rs[:pos]) + current.Render(string(rs[pos])) + string(rs[pos+1:])
 }
