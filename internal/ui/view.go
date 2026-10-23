@@ -35,6 +35,7 @@ var (
 	roomName    = fg("13")
 	alert       = fg("9").Bold(true)
 	current     = cell.Background(lipgloss.Color("236"))                                           // selected line and search hit: dark, not white
+	cursor      = cell.Background(lipgloss.Color("13"))                                            // the input cursor: the focused pane border color
 	selected    = cell.Bold(true).Background(lipgloss.Color("8")).Foreground(lipgloss.Color("15")) // current channel
 	helpHead    = fg("2").Bold(true)
 	// nickColors leaves out red (bypass) and gray (dim lines).

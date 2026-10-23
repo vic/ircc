@@ -1134,9 +1134,9 @@ func withCursor(s string, pos int) string {
 	rs := []rune(s)
 	pos = min(max(pos, 0), len(rs))
 	if pos == len(rs) {
-		return s + current.Render(" ")
+		return s + cursor.Render(" ")
 	}
-	return string(rs[:pos]) + current.Render(string(rs[pos])) + string(rs[pos+1:])
+	return string(rs[:pos]) + cursor.Render(string(rs[pos])) + string(rs[pos+1:])
 }
 
 // WithResume makes ch current as soon as it shows up in the channel list, once:

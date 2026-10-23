@@ -533,16 +533,16 @@ func TestLineCursor(t *testing.T) {
 }
 
 func TestInputCursor(t *testing.T) {
-	if got := withCursor("abc", 1); got != "a"+current.Render("b")+"c" {
+	if got := withCursor("abc", 1); got != "a"+cursor.Render("b")+"c" {
 		t.Fatalf("mid %q", got)
 	}
-	if got := withCursor("ab", 2); got != "ab"+current.Render(" ") {
+	if got := withCursor("ab", 2); got != "ab"+cursor.Render(" ") {
 		t.Fatalf("end %q", got)
 	}
 	var log []sent
 	a, _ := press(t, newApp(t, &log, nil), "i")
 	a = typeText(t, a, "hi")
-	if !strings.Contains(a.screen(), "hi"+current.Render(" ")) {
+	if !strings.Contains(a.screen(), "hi"+cursor.Render(" ")) {
 		t.Fatal("no cursor on screen")
 	}
 	checkFrame(t, a, a.w, a.h)
