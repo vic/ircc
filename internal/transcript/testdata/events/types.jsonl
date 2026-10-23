@@ -1,0 +1,9 @@
+{"type":"assistant"}
+{"type":"user"}
+{"type":"system"}
+{"type":"attachment"}
+{"type":"queue-operation"}
+{"type":"permission-mode"}
+{"type":"agent-name"}
+{"type":"ai-title"}
+{"type":"assistant","isSidechain":true,"agentId":"a1"}

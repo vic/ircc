@@ -1,0 +1,35 @@
+name: Release binaries
+on:
+  release:
+    types: [created]
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux only: ircc reads /proc and SO_PEERCRED.
+        arch: [amd64, arm64]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+          GOOS: linux
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: "0"
+        run: |
+          name=ircc-${VERSION#v}-linux-${GOARCH}
+          mkdir -p release
+          go build -trimpath -o release/ircc ./cmd/ircc
+          tar -C release -czf "release/$name.tar.gz" ircc
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: release/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

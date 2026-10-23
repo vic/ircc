@@ -1,0 +1,347 @@
+package ui
+
+import (
+	"hash/fnv"
+	"strconv"
+	"strings"
+
+	"charm.land/lipgloss/v2"
+
+	"ircc/internal/model"
+)
+
+const (
+	chanW    = 15 // channel list pane, inner width
+	nickW    = 10 // nick pane, inner width
+	minWide  = 40 // below this width (or h < minWideH) View shows the lines pane only
+	minWideH = 5
+	nickCol  = 11 // "<nick>" column in the lines pane
+)
+
+// Styles are named by role, one table; ANSI 16 colors only, so the terminal theme
+// picks the shades.
+var (
+	cell     = lipgloss.NewStyle().Inline(true)
+	dimmed   = fg("8")
+	border   = dimmed
+	faint    = dimmed
+	title    = fg("5").Bold(true)
+	shortcut = fg("5")
+	prompt   = fg("6").Bold(true)
+	unread   = fg("3").Bold(true)
+	sessName = fg("12")
+	roomName = fg("13")
+	alert    = fg("9").Bold(true)
+	current  = cell.Reverse(true)                                                               // search hit
+	selected = cell.Bold(true).Background(lipgloss.Color("8")).Foreground(lipgloss.Color("15")) // current channel
+	helpHead = fg("2").Bold(true)
+	// nickColors leaves out red (bypass) and gray (dim lines).
+	nickColors = []string{"2", "3", "4", "5", "6", "10", "11", "12", "13", "14"}
+)
+
+func fg(c string) lipgloss.Style { return cell.Foreground(lipgloss.Color(c)) }
+
+// badge is the mode block at the left of the modeline: black on a mode color, red in bypass.
+func badge(mode string, bypass bool) string {
+	bg := "5"
+	if mode == "INSERT" {
+		bg = "2"
+	}
+	if bypass {
+		bg = "9"
+	}
+	return cell.Bold(true).Background(lipgloss.Color(bg)).Foreground(lipgloss.Color("0")).Render(" " + mode + " ") // Inline drops Padding
+}
+
+// keyHint is "key desc" pairs: keys in the shortcut color, descriptions dimmed.
+func keyHint(pairs ...string) string {
+	var parts []string
+	for i := 0; i+1 < len(pairs); i += 2 {
+		parts = append(parts, shortcut.Render(pairs[i])+" "+dimmed.Render(pairs[i+1]))
+	}
+	return strings.Join(parts, "  ")
+}
+
+// nickStyle gives each nick a stable color.
+func nickStyle(nick string) lipgloss.Style {
+	h := fnv.New32a()
+	h.Write([]byte(nick))
+	return fg(nickColors[h.Sum32()%uint32(len(nickColors))])
+}
+
+// fit pads or truncates s to exactly n columns.
+func fit(st lipgloss.Style, s string, n int) string {
+	return st.Width(n).MaxWidth(n).Render(strings.ReplaceAll(s, "\n", " "))
+}
+
+func wide(w, h int) bool { return w >= minWide && h >= minWideH }
+
+// paneRows is how many scrollback rows View shows in a w x h screen with in input rows.
+func paneRows(w, h, in int) int {
+	if wide(w, h) {
+		return max(h-3-in, 1) // top and bottom border, modeline, input
+	}
+	return max(h-2-in, 1) // title, modeline, input
+}
+
+// inputRows is "> input" wrapped to w columns: the last rows, at most a third of h,
+// so the end being typed stays visible.
+func inputRows(input string, w, h int) []string {
+	rs := strings.Split(lipgloss.NewStyle().Width(max(w, 1)).Render("> "+input), "\n")
+	if k := max(h/3, 1); len(rs) > k {
+		rs = rs[len(rs)-k:]
+	}
+	return rs
+}
+
+// seg is a pane title in a top border: " title ───" filled to n columns.
+func seg(name string, n int) string {
+	t := " " + name + " "
+	if lipgloss.Width(t) >= n {
+		return fit(title, t, n)
+	}
+	return title.Render(t) + border.Render(strings.Repeat("─", n-lipgloss.Width(t)))
+}
+
+// lineRow is scrollback row i in n columns: the search hit reversed, else the
+// nick in its color and dim or tool text gray.
+func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead string) string {
+	if i >= len(rows) {
+		return fit(cell, "", n)
+	}
+	if of[i] == hit {
+		return fit(current, lead+rows[i], n)
+	}
+	l, r := shown[of[i]], rows[i]
+	st := cell
+	if l.Dim || l.Kind == model.Tool {
+		st = faint
+	}
+	nk := "<" + l.Nick + ">"
+	if after, ok := strings.CutPrefix(r, nk); ok {
+		return fit(cell, lead+nickStyle(l.Nick).Render(nk)+st.Render(after), n)
+	}
+	return fit(cell, lead+st.Render(r), n)
+}
+
+// View renders the box layout of DESIGN D:290-299: channels, lines and nicks
+// panes with borders, then the modeline and the input line, in w columns and h
+// rows. h < 3 or w < 1 yields "". off scrolls the lines pane back: it shows the
+// lines ending off before the newest (clamped, D:304). hit is the index of the
+// search hit in the current channel (-1 none); it is drawn reversed.
+// Channel markers: ● current, ○ gone, else the unread count.
+func View(m model.Model, ml model.Modeline, input string, w, h, off, hit int) string {
+	cur := m.Current()
+	return render(m, ml, input, w, h, off, hit, memberNicks(cur), cur.Lines.All())
+}
+
+// render is View with the nick pane given as nicks and the shown lines of the current channel.
+func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, nicks []string, shown []model.Line) string {
+	if w < 1 || h < 3 {
+		return ""
+	}
+	cur := m.Current()
+	ir := inputRows(input, w, h)
+	n := paneRows(w, h, len(ir))
+	lines, of := tailRows(shown, n, off, textWidth(w, h), wrapLine)
+
+	var rows []string
+	if !wide(w, h) {
+		rows = append(rows, fit(title, cur.Name, w))
+		for i := 0; i < n; i++ {
+			rows = append(rows, lineRow(lines, of, shown, hit, i, w, ""))
+		}
+	} else {
+		chans := m.Channels()
+		mid := w - chanW - nickW - 4 // four border columns
+		b := border.Render
+		rows = append(rows, b("┌")+seg("channels", chanW)+b("┬")+seg(cur.Name, mid)+b("┬")+seg("nicks", nickW)+b("┐"))
+		for i := 0; i < n; i++ {
+			nk := at(nicks, i)
+			if nk != "" { // an empty Render still emits escapes
+				nk = nickStyle(nk).Render(nk)
+			}
+			rows = append(rows, b("│")+chanCell(chans, cur.Name, i)+b("│")+lineRow(lines, of, shown, hit, i, mid, " ")+
+				b("│")+fit(cell, " "+nk, nickW)+b("│"))
+		}
+		rows = append(rows, b("└"+strings.Repeat("─", chanW)+"┴"+strings.Repeat("─", mid)+"┴"+strings.Repeat("─", nickW)+"┘"))
+	}
+
+	left, lst := " ", cell
+	if ml.Mode != "" {
+		left = badge(ml.Mode, ml.Red) + " "
+	}
+	if ml.Red {
+		lst = alert
+	}
+	left += lst.Render(ml.Left)
+	right := dimmed.Render(ml.Right + " ")
+	rows = append(rows, fit(cell, fit(cell, left, max(w-lipgloss.Width(right), 0))+right, w))
+	for _, r := range ir {
+		if after, ok := strings.CutPrefix(r, ">"); ok {
+			r = prompt.Render(">") + after
+		}
+		rows = append(rows, fit(cell, r, w))
+	}
+	return strings.Join(rows, "\n")
+}
+
+func chanCell(chans []model.Channel, curName string, i int) string {
+	if i >= len(chans) {
+		return fit(cell, "", chanW)
+	}
+	c := chans[i]
+	marker, markSt, nameSt := "", cell, sessName
+	if c.Kind == model.RoomChan {
+		nameSt = roomName
+	}
+	switch {
+	case c.Gone:
+		marker, markSt, nameSt = "○", faint, faint
+	case c.Name == curName:
+		marker = "●"
+	case c.Unread > 0:
+		marker, markSt = strconv.Itoa(c.Unread), unread
+	}
+	if c.Name == curName { // plain text: inner colors would end the background early
+		return fit(selected, " "+fit(cell, c.Name, 11)+fit(cell, marker, 3), chanW)
+	}
+	return fit(cell, " "+fit(nameSt, c.Name, 11)+fit(markSt, marker, 3), chanW)
+}
+
+// textWidth is the width of the scrollback text in a w x h screen.
+func textWidth(w, h int) int {
+	if wide(w, h) {
+		return w - chanW - nickW - 4 - 1 // borders and the leading space
+	}
+	return w
+}
+
+// wrapLine word-wraps l to width columns: "<nick>" on the first row, the text
+// aligned under itself on the rows after it.
+func wrapLine(l model.Line, width int) []string {
+	nk := "<" + l.Nick + ">"
+	nk += strings.Repeat(" ", max(nickCol-lipgloss.Width(nk), 1))
+	bw := max(width-lipgloss.Width(nk), 1)
+	var out []string
+	for i, r := range strings.Split(lipgloss.NewStyle().Width(bw).Render(l.Text), "\n") {
+		r = strings.TrimRight(r, " ")
+		if i == 0 {
+			out = append(out, nk+r)
+		} else {
+			out = append(out, strings.Repeat(" ", lipgloss.Width(nk))+r)
+		}
+	}
+	return out
+}
+
+// rowCount is how many rows c's scrollback takes at width.
+func rowCount(ls []model.Line, width int) int {
+	n := 0
+	for _, l := range ls {
+		n += len(wrapLine(l, width))
+	}
+	return n
+}
+
+// tailRows returns the n rows ending off rows before the newest and, per row,
+// the index of the line it belongs to. It wraps lines newest-first and stops
+// once off+n rows are collected, so cost follows the screen, not the ring.
+func tailRows(all []model.Line, n, off, width int, wrap func(model.Line, int) []string) ([]string, []int) {
+	off = max(off, 0)
+	var rev []string // rows, newest first
+	var revOf []int
+	for i := len(all) - 1; i >= 0 && len(rev) < off+n; i-- {
+		rs := wrap(all[i], width)
+		for j := len(rs) - 1; j >= 0; j-- {
+			rev, revOf = append(rev, rs[j]), append(revOf, i)
+		}
+	}
+	rows := make([]string, 0, n)
+	of := make([]int, 0, n)
+	for k := min(off+n, len(rev)) - 1; k >= off; k-- {
+		rows, of = append(rows, rev[k]), append(of, revOf[k])
+	}
+	return rows, of
+}
+
+func at(s []string, i int) string {
+	if i < len(s) {
+		return s[i]
+	}
+	return ""
+}
+
+func memberNicks(c model.Channel) []string {
+	out := make([]string, len(c.Members))
+	for i, m := range c.Members {
+		out[i] = m.Nick
+	}
+	return out
+}
+
+// chanNicks is the nick pane of c (D:217): user, then the session's main agent
+// (D:229 nick = channel name without "#") or the room's members.
+func chanNicks(c model.Channel, user string) []string {
+	if c.Kind == model.SessionChan {
+		return []string{user, strings.TrimPrefix(c.Name, "#")}
+	}
+	return append([]string{user}, memberNicks(c)...)
+}
+
+// helpView is the help box centered in exactly w x h cells.
+func helpView(w, h int) string {
+	if w < 1 || h < 1 {
+		return ""
+	}
+	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("8")).Padding(0, 1).Render(helpText())
+	rows := strings.Split(lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box), "\n")[:h]
+	for i, r := range rows {
+		rows[i] = fit(cell, r, w)
+	}
+	return strings.Join(rows, "\n")
+}
+
+// helpSections is the ? popup: a heading, then key and description pairs.
+var helpSections = []struct {
+	head string
+	keys [][2]string
+}{
+	{"NORMAL", [][2]string{
+		{"up down", "previous / next channel (also ctrl+p ctrl+n, gT gt, {n}gt)"},
+		{"wheel j k", "scroll"},
+		{"ctrl+d ctrl+u", "half page down / up"},
+		{"gg G", "top / bottom"},
+		{"/ n N", "search, next hit, previous hit"},
+		{"i a", "type a message"},
+		{":", "send a line as is to the session (e.g. /compact)"},
+		{"t", "show / hide tool lines"},
+		{"c", "chat only / all lines"},
+	}},
+	{"INSERT", [][2]string{
+		{"enter", "send to the channel"},
+		{"esc", "back to NORMAL (up down still switch channel)"},
+		{"/cmd", "a line that starts with / is an ircc command"},
+	}},
+	{"COMMANDS", [][2]string{
+		{"/join &room", "open or create a room"},
+		{"/invite nick &room", "add a session; its nick is its channel without #"},
+		{"/kick nick", "remove a member"},
+		{"/part /close", "hide / remove a room"},
+		{"/topic /names /who", "room topic, members"},
+		{"/msg nick text", "one line to one agent"},
+	}},
+}
+
+// helpText renders helpSections with the key column aligned.
+func helpText() string {
+	rows := []string{title.Render("ircc") + dimmed.Render("  one # channel per Claude session, & rooms join them"), ""}
+	for _, s := range helpSections {
+		rows = append(rows, helpHead.Render(s.head))
+		for _, k := range s.keys {
+			rows = append(rows, "  "+shortcut.Width(20).Render(k[0])+k[1])
+		}
+		rows = append(rows, "")
+	}
+	return strings.Join(append(rows, keyHint("ctrl+c", "quit", "any key", "close help")), "\n")
+}

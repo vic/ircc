@@ -1,0 +1,5 @@
+{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{},"caller":{"type":"direct"}}]}}
+{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"hmm","signature":"sig"},{"type":"text","text":"done"},{"type":"future_block","x":1}]}}
+{"type":"assistant","message":{"content":[]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"SendMessage","input":{"to":"uds:/run/x/ircc-vic.sock","message":"secret"}},{"type":"tool_use","id":"t3","name":"Bash","input":{"to":5}}]}}

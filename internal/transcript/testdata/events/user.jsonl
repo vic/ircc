@@ -1,0 +1,4 @@
+{"type":"user","message":{"content":"plain string"}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"out","is_error":true}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":[{"type":"text","text":"x"}]},{"type":"text","text":"typed"}]}}
+{"type":"user"}

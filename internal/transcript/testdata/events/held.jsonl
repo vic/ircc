@@ -1,0 +1,2 @@
+{"type":"system","subtype":"informational","level":"warning","content":"Held peer message — from uds:/tmp/x/ircc-%26review.sock [verified pid 548628] (peer claims name: ircc-probe); preview: «...» — not delivered to Claude (1 held). ... set \"crossSessionInbound\" to \"accept\"."}
+{"type":"system","subtype":"informational","level":"info","content":"Held peer message — from uds:/tmp/x/ircc-%26review.sock [verified pid 548628] (peer claims name: ircc-probe); preview: «...» — not delivered to Claude (1 held). ... set \"crossSessionInbound\" to \"accept\"."}
