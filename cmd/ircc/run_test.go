@@ -603,3 +603,28 @@ func TestAgentsMsg(t *testing.T) {
 		t.Fatalf("resent: %q", got)
 	}
 }
+
+func TestInvitableIncludesTeammates(t *testing.T) {
+	f := newFix(t)
+	sub := filepath.Join(filepath.Dir(f.transcript), "sid1", "subagents")
+	if err := os.MkdirAll(sub, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{"agent-adriver-1-ab12.meta.json": `{}`, "agent-adriver-1-ab12.jsonl": `{"type":"assistant","message":{"stop_reason":"end_turn","content":[]}}` + "\n"} {
+		if err := os.WriteFile(filepath.Join(sub, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := newRunner(f.claude, "/proc", "vic", (&sink{}).emit)
+	defer r.close()
+	appendLine(t, f.transcript, "{\"type\":\"user\",\"permissionMode\":\"default\"}\n")
+	r.onSnapshot(snapshot(t, f))
+	r.poll()
+	var got []string
+	for _, e := range r.invitable(rooms.Room{}) {
+		got = append(got, e.Member.Nick)
+	}
+	if strings.Join(got, ",") != "alpha,driver-1@alpha" {
+		t.Fatalf("invitable %q", got)
+	}
+}

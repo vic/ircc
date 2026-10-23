@@ -59,6 +59,7 @@ type tail struct {
 	sizes  map[string]int64   // per subagent transcript: size when busy was last read; poller only
 	busy   map[string]bool    // per subagent transcript: last Busy result; poller only
 	agents string             // last AgentsMsg sent, as a key; poller only
+	list   []model.Agent      // last agent list; guarded by runner.mu (invitable reads it)
 }
 
 // runner holds the producers' state; emit hands messages to the UI. r.mu guards
@@ -301,6 +302,9 @@ func (r *runner) poll() {
 			continue
 		}
 		if m, ok := t.agentsMsg(j.name, j.e.SessionID); ok {
+			r.mu.Lock()
+			t.list = m.Agents
+			r.mu.Unlock()
 			r.emit(m)
 		}
 		lines, err := t.t.Lines()

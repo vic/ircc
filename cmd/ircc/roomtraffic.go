@@ -64,7 +64,8 @@ func (r *runner) endsFor(room rooms.Room) (ends []rooms.Endpoint, skipped []stri
 	return ends, skipped
 }
 
-// invitable lists every live session as a main-agent member (D:229 nick =
+// invitable lists every live session as a main-agent member, and its subagents as
+// <agent>@<session> members (D:229 nick =
 // channel name without "#"); /invite picks its target from it. Unknown mode
 // fails closed: that session is left out.
 func (r *runner) invitable(rooms.Room) []rooms.Endpoint {
@@ -80,8 +81,14 @@ func (r *runner) invitable(rooms.Room) []rooms.Endpoint {
 		if err != nil || e.SessionID == "" {
 			continue
 		}
-		m := rooms.Member{Session: e.SessionID, Nick: strings.TrimPrefix(r.names[pid], "#")}
-		out = append(out, rooms.Endpoint{Member: m, Sock: e.SocketPath, Class: class})
+		nick := strings.TrimPrefix(r.names[pid], "#")
+		out = append(out, rooms.Endpoint{Member: rooms.Member{Session: e.SessionID, Nick: nick}, Sock: e.SocketPath, Class: class})
+		if t := r.tails[pid]; t != nil {
+			for _, ag := range t.list { // teammates: <agent>@<session> (D:229), reached via the session's socket
+				m := rooms.Member{Session: e.SessionID, Nick: ag.Nick + "@" + nick}
+				out = append(out, rooms.Endpoint{Member: m, Sock: e.SocketPath, Class: class})
+			}
+		}
 	}
 	return out
 }

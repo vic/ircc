@@ -656,20 +656,25 @@ func (a App) showHit() App {
 	return a.setOff(a.m.Current().Name, max(after-a.page(), 0))
 }
 
-// nickPool is every nick tab can complete: session main agents, then members of
-// the current room.
+// nickPool is every nick tab can complete: the current channel's agents and members,
+// then every session main agent and its agents as agent@session.
 func (a App) nickPool() []string {
-	var out []string
-	for _, c := range a.m.Channels() {
-		if c.Kind == model.SessionChan {
-			out = append(out, strings.TrimPrefix(c.Name, "#"))
-		}
-	}
-	for _, ag := range a.m.Current().Agents {
+	cur := a.m.Current()
+	var out []string // the current channel's nicks first: tab offers them first
+	for _, ag := range cur.Agents {
 		out = append(out, ag.Nick)
 	}
-	for _, m := range a.m.Current().Members {
+	for _, m := range cur.Members {
 		out = append(out, m.Nick)
+	}
+	for _, c := range a.m.Channels() {
+		if c.Kind == model.SessionChan {
+			s := strings.TrimPrefix(c.Name, "#")
+			out = append(out, s)
+			for _, ag := range c.Agents { // teammate outside its channel: agent@session (D:229)
+				out = append(out, ag.Nick+"@"+s)
+			}
+		}
 	}
 	return out
 }
