@@ -109,7 +109,7 @@ func seg(name string, n int, line lipgloss.Style) string {
 // lineRow is scrollback row i in n columns: the search hit reversed, else the
 // nick in its color, dim or tool text gray, chat text with markdown colors.
 // code[i]: the row is inside a ``` block of its line.
-func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead string, code []bool) string {
+func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead string, code []bool, q string) string {
 	if i >= len(rows) {
 		return fit(cell, "", n)
 	}
@@ -124,7 +124,7 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 			return mentions(s, st)
 		}
 		pad := len(s) - len(strings.TrimLeft(s, " ")) // indentation stays unstyled
-		return s[:pad] + markdown(s[pad:], st, code[i])
+		return s[:pad] + markHits(s[pad:], st, code[i], q)
 	}
 	if s := stampRE.FindString(r); s != "" {
 		lead, r = lead+dimmed.Render(s), r[len(s):]
@@ -171,11 +171,11 @@ func View(m model.Model, ml model.Modeline, input string, w, h, off, hit int) st
 	for _, c := range m.Channels() {
 		names = append(names, c.Name)
 	}
-	return render(m, ml, "> "+input, w, h, off, hit, sidePanes{chans: names, nicks: memberNicks(cur)}, cur.Lines.All(), wrapLine, nil, "")
+	return render(m, ml, "> "+input, w, h, off, hit, sidePanes{chans: names, nicks: memberNicks(cur)}, cur.Lines.All(), wrapLine, nil, "", "")
 }
 
 // render is View with the nick pane given as nicks and the shown lines of the current channel.
-func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, p sidePanes, shown []model.Line, wrap wrapFunc, sugg []string, hint string) string {
+func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, p sidePanes, shown []model.Line, wrap wrapFunc, sugg []string, hint, q string) string {
 	if w < 1 || h < 3 {
 		return ""
 	}
@@ -189,7 +189,7 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 	if !wide(w, h) {
 		rows = append(rows, fit(title, cur.Name, w))
 		for i := 0; i < n; i++ {
-			rows = append(rows, lineRow(lines, of, shown, hit, i, w, "", code))
+			rows = append(rows, lineRow(lines, of, shown, hit, i, w, "", code, ""))
 		}
 	} else {
 		byName := map[string]model.Channel{}
@@ -242,7 +242,7 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 			if p.focus == focusNicks && i == p.sel && i < len(p.nicks) {
 				nc = fit(current, " "+p.nicks[i], nickW)
 			}
-			rows = append(rows, edge(0, "│")+cc+edge(1, "│")+lineRow(lines, of, shown, hit, i, mid, " ", code)+
+			rows = append(rows, edge(0, "│")+cc+edge(1, "│")+lineRow(lines, of, shown, hit, i, mid, " ", code, q)+
 				edge(2, "│")+nc+edge(3, "│"))
 		}
 		rows = append(rows, edge(0, "└")+line(0).Render(strings.Repeat("─", chanW))+edge(1, "┴")+line(1).Render(strings.Repeat("─", mid))+
@@ -427,6 +427,7 @@ var helpSections = []struct {
 		{"tab", "focus channels, then nicks: type to filter, enter joins / mentions"},
 		{"ctrl+o", "fuzzy picker: channels, and @nicks to mention"},
 		{"ctrl+t", "fuzzy file finder: enter inserts the path"},
+		{"ctrl+g", "grep: show only lines fuzzy-matching the text (esc clears)"},
 		{"wheel j k", "scroll"},
 		{"J K", "next / previous speaker change"},
 		{"S", "show only one speaker (fuzzy pick; (all) clears)"},
@@ -581,4 +582,29 @@ func overlaySuggest(screen string, w, bottom int, sugg []string) string {
 		bottom--
 	}
 	return strings.Join(rows, "\n")
+}
+
+// hitStyle marks the text a ctrl+g grep matched.
+var hitStyle = lipgloss.NewStyle().Reverse(true)
+
+// markHits is markdown with the case-insensitive matches of q in hitStyle.
+func markHits(s string, st lipgloss.Style, code bool, q string) string {
+	ls, lq := strings.ToLower(s), strings.ToLower(q)
+	if q == "" || len(ls) != len(s) || len(lq) != len(q) { // lowercasing changed byte offsets: no highlight
+		return markdown(s, st, code)
+	}
+	var b strings.Builder
+	last := 0
+	for {
+		j := strings.Index(ls[last:], lq)
+		if j < 0 {
+			break
+		}
+		j += last
+		b.WriteString(markdown(s[last:j], st, code))
+		b.WriteString(hitStyle.Render(s[j : j+len(q)]))
+		last = j + len(q)
+	}
+	b.WriteString(markdown(s[last:], st, code))
+	return b.String()
 }

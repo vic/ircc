@@ -903,3 +903,28 @@ func TestFileFinderFromPrompt(t *testing.T) {
 		t.Fatalf("pick %v prompt %q input %q mode %v sent %d", a.pick, a.prompt, a.in.Value(), a.mode, len(log))
 	}
 }
+
+func TestGrepFiltersLines(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	for _, text := range []string{"build passed", "lint failed", "build failed"} {
+		next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "vic", Text: text}})
+		a = next.(App)
+	}
+	a = a.openPick(pickGrep)
+	a = typeText(t, a, "D FAIL")
+	if got := len(a.lines(a.m.Current())); got != 1 || !strings.Contains(a.screen(), "grep:D FAIL") {
+		t.Fatalf("grep: %d lines", got)
+	}
+	a, _ = press(t, a, "esc")
+	if a.grep != "" || len(a.lines(a.m.Current())) != 3 {
+		t.Fatalf("esc did not clear: %q", a.grep)
+	}
+}
+
+func TestGrepHighlightKeepsText(t *testing.T) {
+	out := markHits("build FAILED, failed again", lipgloss.NewStyle(), false, "fail")
+	if n := strings.Count(out, "\x1b[7m"); n != 2 || ansi.Strip(out) != "build FAILED, failed again" {
+		t.Fatalf("highlight: %d hits in %q", n, out)
+	}
+}

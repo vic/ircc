@@ -109,6 +109,7 @@ type App struct {
 	pick     bool            // ctrl+o or /: the picker is open
 	pickWhat pickKind        // what the picker lists: channels (ctrl+o), lines (/), speakers (S)
 	speakers []string        // S: show only these nicks' lines; none = all
+	grep     string          // ctrl+g: show only lines fuzzy-matching this; "" off
 	marks    []string        // S picker: nicks marked with space, applied by enter
 	resumeTo string          // channel to focus once it shows up (the last one of the previous run)
 	toasts   []toast         // notification cards, newest last; the tick drops old ones
@@ -361,6 +362,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a.openPick(pickSpeakers), nil
 	case PickChan:
 		return a.openPick(pickChans), nil
+	case GrepLines:
+		return a.openPick(pickGrep), nil
 	case PickFile:
 		return a.openFilePick()
 	case LineUp, LineDown:
@@ -450,8 +453,8 @@ func (a App) focusName(name string) App {
 	from := a.m.Current().Name
 	for i, c := range a.m.Channels() {
 		if c.Name == name && name != from {
-			a.m, _ = a.m.Focus(i)       // i is in range: it comes from Channels
-			a.hit, a.speakers = -1, nil // the speaker filter belongs to the channel it was set in
+			a.m, _ = a.m.Focus(i)                   // i is in range: it comes from Channels
+			a.hit, a.speakers, a.grep = -1, nil, "" // the speaker and grep filters belong to the channel they were set in
 		}
 	}
 	return a
@@ -535,7 +538,7 @@ func (a App) inputLine() (label, input, hint string) {
 func (a App) footer() string {
 	// states first: on a narrow screen the keys fall off the end (they are in ? help)
 	return fit(cell, " "+keyHint("t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps),
-		"S", "speaker:"+cmp.Or(strings.Join(a.speakers, ","), "all"), "/", "search", "J K", "turns", "A", "reply @", ":", "literal"), max(a.w, 1)) // one row
+		"S", "speaker:"+cmp.Or(strings.Join(a.speakers, ","), "all"), "C-g", "grep:"+cmp.Or(a.grep, "off"), "/", "search", "J K", "turns", "A", "reply @", ":", "literal"), max(a.w, 1)) // one row
 }
 
 // View is the full-screen frame; screen is its text.
@@ -552,6 +555,8 @@ func (a App) screen() string {
 	switch {
 	case a.help:
 		return overlayCentered(screen, a.w, a.h, helpBox(a.h, a.helpOff))
+	case a.pick && a.pickWhat == pickGrep:
+		return overlayCentered(screen, a.w, a.h, grepBox(a.w, a.pq.Value()))
 	case a.pick:
 		what := [...]string{pickChans: "channel / @nick", pickLines: "search", pickSpeakers: "speaker", pickInvite: "invite to " + a.m.Current().Name, pickFiles: "file"}[a.pickWhat]
 		return overlayCentered(screen, a.w, a.h, pickBox(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel, a.pickWhat == pickSpeakers, a.shownMarks()))
@@ -562,7 +567,7 @@ func (a App) screen() string {
 // chatScreen is the scrollback, input and modeline, with the completion and toasts floating over them.
 func (a App) chatScreen() string {
 	label, input, hint := a.inputLine()
-	screen := render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.sides(), a.lines(a.m.Current()), a.wrap(), nil, hint)
+	screen := render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.sides(), a.lines(a.m.Current()), a.wrap(), nil, hint, a.grep)
 	modeline := a.h - len(inputRows(input, a.w, a.h)) - 1
 	screen = overlaySuggest(screen, a.w, modeline-1, a.suggest()) // floats above the prompt: the layout does not move
 	return overlayToasts(screen, a.w, modeline-1, a.toasts)       // cards sit just above the modeline
@@ -660,6 +665,11 @@ func (a App) WithCmd(f func(ch string, c model.Cmd) tea.Cmd) App {
 // m (mentions) keeps direct lines only: in a # channel the Chat lines (replies to
 // you, your lines), in a & room only lines that @mention you or are yours.
 func (a App) shows(k model.ChanKind, l model.Line) bool {
+	if a.grep != "" {
+		if !strings.Contains(strings.ToLower(l.Text), strings.ToLower(a.grep)) { // case-insensitive substring
+			return false
+		}
+	}
 	if len(a.speakers) > 0 && !slices.Contains(a.speakers, l.Nick) {
 		return false
 	}
@@ -742,6 +752,7 @@ const (
 	pickSpeakers                 // S: who spoke here; enter shows only that nick (vic 2026-10-23)
 	pickInvite                   // I: who can be invited to this room; enter invites (vic 2026-10-23)
 	pickFiles                    // ctrl+t: the session's files; enter inserts the path
+	pickGrep                     // ctrl+g: filter the shown lines to fuzzy matches, live
 )
 
 // allSpeakers is the speaker picker's first entry: it clears the filter.
@@ -827,6 +838,9 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	ms := pickList(a.pickSource(), a.pq.Value())
 	switch msg.String() {
 	case "esc":
+		if a.pickWhat == pickGrep { // esc clears the grep filter
+			a.grep, a.hit, a.offs = "", -1, nil
+		}
 		a.pick = false
 	case "enter":
 		if a.psel < len(ms) && a.pickWhat == pickFiles {
@@ -866,7 +880,14 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		a.pick = false
-	case "space": // S picker: mark or unmark the selected nick; (all) clears the marks
+	case "space": // S picker: mark or unmark the selected nick; (all) clears the marks. Other pickers type a space.
+		if a.pickWhat != pickSpeakers {
+			var cmd tea.Cmd
+			a.pq, cmd = a.pq.Update(msg)
+			a.psel = 0
+			a = a.grepSync()
+			return a, cmd
+		}
 		if a.pickWhat == pickSpeakers && a.psel < len(ms) {
 			n := ms[a.psel].name
 			if n == allSpeakers {
@@ -884,7 +905,8 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	default:
 		var cmd tea.Cmd
 		a.pq, cmd = a.pq.Update(msg)
-		a.psel = 0 // a new query starts at its best match
+		a.psel = 0       // a new query starts at its best match
+		a = a.grepSync() // grep filters live as you type
 		return a, cmd
 	}
 	return a, nil
@@ -1331,4 +1353,12 @@ type filesMsg []string
 func (a App) openFilePick() (App, tea.Cmd) {
 	cwd := a.m.Current().Cwd
 	return a.openPick(pickFiles), func() tea.Msg { return filesMsg(listFiles(cwd)) }
+}
+
+// grepSync sets the ctrl+g filter to the picker's text while the grep picker is open.
+func (a App) grepSync() App {
+	if a.pickWhat == pickGrep {
+		a.grep, a.hit, a.offs = strings.TrimSpace(a.pq.Value()), -1, nil
+	}
+	return a
 }
