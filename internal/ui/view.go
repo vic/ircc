@@ -458,6 +458,7 @@ var helpSections = []struct {
 		{"O", "type a reply to the last @mentioned nick"},
 		{":", "send a line as is to the session (e.g. /compact)"},
 		{"$", "run a shell command locally (suspends ircc; Enter returns)"},
+		{"!", "run a shell command, insert its output as a fenced block"},
 		{"t", "show / hide tool lines"},
 		{"m", "mentions only (direct lines) / all lines"},
 		{"s", "show / hide times (15:04)"},

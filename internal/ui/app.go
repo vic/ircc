@@ -576,7 +576,7 @@ func (a App) inputLine() (label, input, hint string) {
 	case a.focus == focusNicks:
 		return "NICKS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "mention", "tab", "chat", "esc", "chat")
 	}
-	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "files", "C-f", "file block", "C-o", "pick", "i", "type", "?", "help", "$", "shell")
+	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "files", "C-f", "file block", "C-o", "pick", "i", "type", "?", "help", "$", "shell", "!", "capture")
 }
 
 // footer is the last row outside INSERT: more keys and the toggle states, since
