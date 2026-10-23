@@ -265,6 +265,8 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 	for _, r := range ir {
 		if after, ok := strings.CutPrefix(r, ">"); ok {
 			r = prompt.Render(">") + after
+		} else if after, ok := strings.CutPrefix(r, "RE:"); ok { // a reply prompt is the same color
+			r = prompt.Render("RE:") + after
 		}
 		rows = append(rows, fit(cell, r, w))
 	}
