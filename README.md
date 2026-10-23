@@ -47,7 +47,8 @@ Start `ircc` in a terminal while one or more Claude sessions run.
   scrollback, and tab completion for commands, channels and nicks. ircc starts on
   the channel you were on when you quit.
 - **Notifications:** small cards at the bottom right, gone after 4 s: errors,
-  hook errors, a goal that is met, and a session whose context use crosses 90%.
+  hook errors, a goal that is met, and a session whose context filled up and was
+  compacted.
 - **Teammates:** subagents of a session are nicks you can mention, and you can
   invite them to a room as `agent@session` (their session relays for them).
 
@@ -70,7 +71,7 @@ Press `?` in ircc for all of them.
 | :            | send a line as is to the session                        |
 
 Commands, typed in INSERT: `/join`, `/part`, `/rm`, `/invite`, `/kick`, `/topic`,
-`/names`, `/who`, `/msg`, `/quit`.
+`/names`, `/who`, `/msg`, `/help`, `/quit`.
 
 A session can also send to a room itself: it sends to `&review` with its
 SendMessage tool.

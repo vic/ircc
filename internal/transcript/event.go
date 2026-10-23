@@ -22,7 +22,6 @@ type Event struct {
 	Blocks         []Block // assistant/user message content (measured shapes)
 	Done           bool    // assistant turn ended (stop_reason end_turn): the agent is idle
 	Notice         *Notice // hook errors and goal status: shown as a toast, not a line
-	CtxPct         float64 // context use in % from a "ctx N%" hook text (vic's BUDGET hook); 0 = none
 }
 
 type rawEvent struct {
@@ -38,15 +37,18 @@ type rawEvent struct {
 		StopReason string          `json:"stop_reason"`
 	} `json:"message"`
 	Attachment *struct {
-		Type          string          `json:"type"`
-		Met           bool            `json:"met"`
-		Condition     string          `json:"condition"`
-		HookEvent     string          `json:"hookEvent"`
-		Content       json.RawMessage `json:"content"` // hook_additional_context: []string
+		Type          string `json:"type"`
+		Met           bool   `json:"met"`
+		Condition     string `json:"condition"`
+		HookEvent     string `json:"hookEvent"`
 		BlockingError struct {
 			BlockingError string `json:"blockingError"`
 		} `json:"blockingError"`
 	} `json:"attachment"`
+	CompactMetadata *struct {
+		Trigger   string `json:"trigger"`
+		PreTokens int    `json:"preTokens"`
+	} `json:"compactMetadata"`
 }
 
 const (
@@ -74,7 +76,6 @@ func ParseEvent(line []byte) (Event, error) {
 		}
 		e.Blocks = bs
 	}
-	e.CtxPct = r.ctxPct()
 	if n, only := r.notice(e.Blocks); n != nil || only {
 		e.Notice = n
 		if only {
@@ -206,6 +207,7 @@ func toolArg(in map[string]json.RawMessage) string {
 }
 
 // Notice is an event ircc shows as a toast (vic 2026-10-23). Measured 2026-10-23:
+// system compact_boundary {compactMetadata.trigger, .preTokens} (context full);
 // attachments goal_status {met, condition} and hook_blocking_error {hookEvent,
 // blockingError.blockingError}; user text "<Event>[:<Tool>] hook error: ...".
 type Notice struct {
@@ -222,6 +224,9 @@ const stopFeedback = "Stop hook feedback:"
 // notice reads the toast an event carries, if any, and reports whether the event's
 // own blocks are only that notice (then they are not shown as lines).
 func (r rawEvent) notice(blocks []Block) (*Notice, bool) {
+	if c := r.CompactMetadata; r.Type == "system" && r.Subtype == "compact_boundary" && c != nil {
+		return &Notice{Text: fmt.Sprintf("context full: compacted (%s, %dk tokens before)", c.Trigger, c.PreTokens/1000), Err: true}, false
+	}
 	if a := r.Attachment; r.Type == "attachment" && a != nil {
 		switch a.Type {
 		case "goal_status":
@@ -243,27 +248,4 @@ func (r rawEvent) notice(blocks []Block) (*Notice, bool) {
 		return nil, true // the hook_blocking_error attachment already toasts it
 	}
 	return nil, false
-}
-
-// ctxRE is the context use a hook writes into hook_additional_context, e.g.
-// "BUDGET PreToolUse · ctx 53.5% · 5h 11.0%" (measured 2026-10-23, vic's hook).
-var ctxRE = regexp.MustCompile(`\bctx ([0-9]+(?:\.[0-9]+)?)%`)
-
-// ctxPct reads ctxRE from a hook_additional_context attachment; 0 when absent.
-func (r rawEvent) ctxPct() float64 {
-	if r.Type != "attachment" || r.Attachment == nil || r.Attachment.Type != "hook_additional_context" {
-		return 0
-	}
-	var texts []string
-	if json.Unmarshal(r.Attachment.Content, &texts) != nil {
-		return 0
-	}
-	for _, t := range texts {
-		if m := ctxRE.FindStringSubmatch(t); m != nil {
-			if p, err := strconv.ParseFloat(m[1], 64); err == nil {
-				return p
-			}
-		}
-	}
-	return 0
 }

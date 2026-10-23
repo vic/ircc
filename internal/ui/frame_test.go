@@ -713,3 +713,13 @@ func TestChannelPanePreviews(t *testing.T) {
 		t.Fatalf("esc: %s", cur(a))
 	}
 }
+
+func TestHelpCommand(t *testing.T) {
+	var log []sent
+	a, _ := press(t, newApp(t, &log, nil), "i")
+	a = typeText(t, a, "/help")
+	a, cmd := press(t, a, "enter")
+	if !a.help || cmd != nil || !strings.Contains(ansi.Strip(a.screen()), "one # channel per Claude session") {
+		t.Fatalf("help %v cmd %v", a.help, cmd)
+	}
+}

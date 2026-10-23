@@ -20,11 +20,12 @@ const (
 	CmdNames  CmdName = "names"
 	CmdMsg    CmdName = "msg"
 	CmdQuit   CmdName = "quit"
+	CmdHelp   CmdName = "help"
 )
 
 // CmdWords are the words a / line can start with (completion lists them); rm and q
 // are aliases ParseCmd maps to close and quit.
-var CmdWords = []string{"join", "part", "rm", "close", "invite", "kick", "topic", "who", "names", "msg", "quit"}
+var CmdWords = []string{"join", "part", "rm", "close", "invite", "kick", "topic", "who", "names", "msg", "help", "quit"}
 
 // Cmd can only be built by ParseCmd.
 type Cmd struct {
@@ -47,7 +48,7 @@ func arity(n CmdName) (count int, raw, ok bool) {
 		return 1, true, true
 	case CmdMsg:
 		return 2, true, true
-	case CmdPart, CmdClose, CmdWho, CmdNames, CmdQuit:
+	case CmdPart, CmdClose, CmdWho, CmdNames, CmdQuit, CmdHelp:
 		return -1, false, true
 	}
 	return 0, false, false
@@ -110,4 +111,5 @@ var usage = map[CmdName]string{
 	CmdNames:  "/names [&room]",
 	CmdMsg:    "/msg <nick> <text>",
 	CmdQuit:   "/quit",
+	CmdHelp:   "/help",
 }

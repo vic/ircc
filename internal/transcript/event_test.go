@@ -174,6 +174,8 @@ func TestNotices(t *testing.T) {
 		{`{"type":"user","message":{"content":"Stop hook feedback:\nupdate HANDOFF"}}`, "", false, false}, // shown by the attachment
 		{`{"type":"user","message":{"content":"a hook error: is just words"}}`, "", false, true},          // NEG: plain text
 		{`{"type":"attachment","attachment":{"type":"hook_success"}}`, "", false, false},                  // NEG: too frequent to toast
+		{`{"type":"system","subtype":"compact_boundary","compactMetadata":{"trigger":"auto","preTokens":174590}}`, "context full: compacted (auto, 174k tokens before)", true, false},
+		{`{"type":"attachment","attachment":{"type":"hook_additional_context","content":["BUDGET ctx 95%"]}}`, "", false, false}, // NEG: no one's hook text is read
 	} {
 		ev, err := ParseEvent([]byte(c.line))
 		if err != nil {
@@ -185,19 +187,6 @@ func TestNotices(t *testing.T) {
 		}
 		if text != c.text || isErr != c.err || (len(ev.Blocks) > 0) != c.blocks {
 			t.Errorf("%s: notice %q err %v blocks %d", c.line, text, isErr, len(ev.Blocks))
-		}
-	}
-}
-
-func TestCtxPct(t *testing.T) {
-	for line, want := range map[string]float64{
-		`{"type":"attachment","attachment":{"type":"hook_additional_context","content":["BUDGET PreToolUse · ctx 91.5% · 5h 11.0%"]}}`: 91.5,
-		`{"type":"attachment","attachment":{"type":"hook_additional_context","content":["no budget here"]}}`:                           0, // NEG
-		`{"type":"attachment","attachment":{"type":"hook_success","content":["ctx 99%"]}}`:                                             0, // NEG: other kind
-	} {
-		ev, err := ParseEvent([]byte(line))
-		if err != nil || ev.CtxPct != want {
-			t.Errorf("%s: %v %v", line, ev.CtxPct, err)
 		}
 	}
 }

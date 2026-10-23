@@ -427,6 +427,7 @@ var helpSections = []struct {
 		{"/part /rm", "hide / remove a room (/rm = /close)"},
 		{"/topic /names /who", "room topic, members"},
 		{"/msg nick text", "one line to one agent"},
+		{"/help", "this help (same as ?)"},
 	}},
 }
 

@@ -401,6 +401,10 @@ func (a App) runCmd(line string) (tea.Model, tea.Cmd) {
 	if err != nil {
 		return a.note(err.Error()), nil
 	}
+	if c.Name() == model.CmdHelp { // the same screen as ? (vic 2026-10-23)
+		a.help = true
+		return a, nil
+	}
 	if c.Name() == model.CmdQuit {
 		return a, tea.Quit
 	}
