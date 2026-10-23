@@ -36,7 +36,6 @@ const (
 	ToggleStamps
 	PickChan
 	ReplyMention
-	ToggleThinking
 )
 
 // maxCountDigits bounds the {n} in {n}gt.
@@ -93,8 +92,6 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: PrevChan}, Normal, ""
 		case "tab":
 			return Action{Kind: LastChan}, Normal, ""
-		case "T":
-			return Action{Kind: ToggleThinking}, Normal, ""
 		case "s":
 			return Action{Kind: ToggleStamps}, Normal, ""
 		case "t":

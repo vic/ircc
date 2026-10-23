@@ -30,7 +30,7 @@ func TestParseCmd(t *testing.T) {
 		{"/foo", "", nil, true},
 		{"/mode x", "", nil, true}, // /mode dropped (vic 2026-10-22)
 		{"/mode", "", nil, true},
-		{"/thinking on", "", nil, true}, // thinking is the T key now (vic 2026-10-22)
+		{"/thinking on", "", nil, true}, // dropped (vic 2026-10-22)
 		{"/join", "", nil, true},
 		{"/join &a &b", "", nil, true},
 		{"/kick", "", nil, true},

@@ -114,7 +114,7 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 		return fit(current, lead+rows[i], n)
 	}
 	l, r := shown[of[i]], rows[i]
-	plain := l.Dim || l.Kind == model.Tool || l.Kind == model.Thinking
+	plain := l.Dim || l.Kind == model.Tool
 	st := cell
 	if plain {
 		st = faint
@@ -191,7 +191,11 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 		for i := 0; i < n; i++ {
 			nk := at(nicks, i)
 			if nk != "" { // an empty Render still emits escapes
-				nk = nickStyle(nk).Render(nk)
+				mark, name := "", nk
+				if rest, ok := strings.CutPrefix(nk, busyMark); ok {
+					mark, name = dimmed.Render(busyMark), rest
+				}
+				nk = mark + nickStyle(name).Render(name)
 			}
 			rows = append(rows, b("│")+chanCell(chans, cur.Name, i)+b("│")+lineRow(lines, of, shown, hit, i, mid, " ", code)+
 				b("│")+fit(cell, " "+nk, nickW)+b("│"))
@@ -356,7 +360,6 @@ var helpSections = []struct {
 		{"t", "show / hide tool lines"},
 		{"m", "mentions only (direct lines) / all lines"},
 		{"s", "show / hide times (15:04)"},
-		{"T", "show / hide thinking"},
 	}},
 	{"INSERT", [][2]string{
 		{"enter", "send to the channel"},

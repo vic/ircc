@@ -589,8 +589,6 @@ func blockLines(ev transcript.Event, session, user string) []model.Line {
 			out = append(out, model.Line{At: now, Nick: user, Text: b.Text, Dim: strings.HasPrefix(b.Text, "<"), Kind: model.Transcript}) // injected tags, not typed
 		case b.Kind == transcript.TextBlock:
 			out = append(out, model.Line{At: now, Nick: nick, Text: b.Text, Kind: model.Transcript})
-		case b.Kind == transcript.ThinkingBlock:
-			out = append(out, model.Line{At: now, Nick: nick, Text: b.Text, Dim: true, Kind: model.Thinking})
 		case b.Kind == transcript.ToolUseBlock && (toIRCC(b.ToolTo) || b.ToolTo == user || strings.HasPrefix(b.ToolTo, "&")): // reply shows via the endpoint
 			continue
 		case b.Kind == transcript.ToolUseBlock:

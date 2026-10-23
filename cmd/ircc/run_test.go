@@ -428,7 +428,7 @@ func TestBlockLines(t *testing.T) {
 	}{
 		{"assistant text", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.TextBlock, Text: "hi"}}}, []row{{"alpha", "hi", false}}},
 		{"tool_use dim", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "Bash"}}}, []row{{"alpha", "* Bash", true}}},
-		{"thinking emitted dim (the T toggle hides it in the UI)", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ThinkingBlock, Text: "hmm"}}}, []row{{"alpha", "hmm", true}}},
+		{"thinking not shown (vic 2026-10-22: a busy mark instead)", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ThinkingBlock, Text: "hmm"}}}, nil},
 		{"user text", transcript.Event{Type: "user", Blocks: []transcript.Block{{Kind: transcript.TextBlock, Text: "typed"}}}, []row{{"vic", "typed", false}}},
 		{"tool_result ok hidden", transcript.Event{Type: "user", Blocks: []transcript.Block{{Kind: transcript.ToolResultBlock}}}, nil},
 		{"tool_result error", transcript.Event{Type: "user", Blocks: []transcript.Block{{Kind: transcript.ToolResultBlock, IsError: true}}}, []row{{"alpha", "! tool error", true}}},

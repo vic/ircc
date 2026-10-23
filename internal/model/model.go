@@ -23,7 +23,6 @@ const (
 	Chat       LineKind = iota // user lines, peer replies, room lines, notes
 	Transcript                 // session text read from its transcript
 	Tool                       // tool_use and tool errors from the transcript
-	Thinking                   // thinking blocks from the transcript (T shows them)
 )
 
 // Line is one scrollback entry.

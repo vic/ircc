@@ -379,24 +379,6 @@ func TestMultilineKeepsLayout(t *testing.T) {
 	}
 }
 
-func TestThinkingToggle(t *testing.T) {
-	var log []sent
-	a := newApp(t, &log, nil)
-	next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "a", Text: "pondering", Dim: true, Kind: model.Thinking}})
-	a = next.(App)
-	if strings.Contains(ansi.Strip(a.screen()), "pondering") {
-		t.Fatal("thinking shown by default")
-	}
-	a, _ = press(t, a, "T")
-	if !strings.Contains(ansi.Strip(a.screen()), "pondering") {
-		t.Fatal("T did not show thinking")
-	}
-	a, _ = press(t, a, "m") // NEG: mentions hides it again
-	if strings.Contains(ansi.Strip(a.screen()), "pondering") {
-		t.Fatal("thinking shown in mentions mode")
-	}
-}
-
 func TestMarkdownColors(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
@@ -414,5 +396,28 @@ func TestMarkdownColors(t *testing.T) {
 	}
 	if s := ansi.Strip(v); !strings.Contains(s, "- run `go test` **now**") || !strings.Contains(s, "snake_case_name") {
 		t.Fatalf("text changed:\n%s", s)
+	}
+}
+
+func TestBusyMarks(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)                                   // #a pid 1, user "me"
+	if got := strings.Join(a.paneNicks(), ","); got != "me,a" { // control: idle, not typing
+		t.Fatalf("idle %q", got)
+	}
+	next, _ := a.Update(InfoMsg{1: {Status: "busy"}})
+	a, _ = press(t, next.(App), "i", "x")
+	if got := strings.Join(a.paneNicks(), ","); got != "…me,…a" {
+		t.Fatalf("busy+typing %q", got)
+	}
+	if !strings.Contains(ansi.Strip(a.screen()), "…a") {
+		t.Fatal("mark not on screen")
+	}
+	next, _ = a.Update(RoomsMsg{"&r"})
+	next, _ = next.(App).Update(MembersMsg{Ch: "&r", Nicks: []string{"lib1"}})
+	a = next.(App).focusName("&r")
+	a.m, _ = a.m.WithRoomMembers("&r", []model.Member{{Nick: "a"}, {Nick: "x@a"}, {Nick: "b"}}) // no PIDs, as at runtime
+	if got := strings.Join(a.paneNicks(), ","); got != "…me,…a,…x@a,b" {                        // NEG: b (pid 2) is idle
+		t.Fatalf("room %q", got)
 	}
 }
