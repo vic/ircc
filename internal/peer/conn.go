@@ -42,6 +42,9 @@ type Listener struct {
 	err  error
 }
 
+// ErrInUse: a live socket already owns the path.
+var ErrInUse = errors.New("in use")
+
 // clearStale removes a leftover socket at path if nothing listens on it. A
 // live socket or a non-socket file is an error and is never unlinked.
 func clearStale(path string) error {
@@ -58,7 +61,7 @@ func clearStale(path string) error {
 	c, err := net.DialTimeout("unix", path, sendTimeout)
 	if err == nil {
 		c.Close()
-		return fmt.Errorf("peer: %s in use", path)
+		return fmt.Errorf("peer: %s: %w", path, ErrInUse)
 	}
 	if !errors.Is(err, syscall.ECONNREFUSED) {
 		return fmt.Errorf("peer: probe %s: %w", path, err)

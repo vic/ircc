@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,8 +26,9 @@ import (
 )
 
 const (
-	ringCap   = 1000
-	pollEvery = 500 * time.Millisecond
+	maxNickTries = 100
+	ringCap      = 1000
+	pollEvery    = 500 * time.Millisecond
 	// seedBytes is how much of a transcript's tail is read to learn the current
 	// permissionMode when a session is first seen.
 	seedBytes = 256 << 10
@@ -75,6 +77,7 @@ type runner struct {
 	tails    map[int]*tail
 	warned   map[int]bool // transcript-open failure already shown
 	epWarned bool         // endpoint-open failure already shown
+	autoNick bool         // no -n: openUser may suffix r.user on a clash
 
 	rt *roomRT // room runtime (T40); nil until the TUI wires it
 
@@ -365,7 +368,7 @@ func (r *runner) endpoint(e registry.Entry) (*peer.Endpoint, error) {
 	r.epMu.Lock()
 	defer r.epMu.Unlock()
 	if r.ep == nil {
-		ep, err := peer.OpenUser(filepath.Dir(e.SocketPath), r.sessDir(), r.procRoot, r.user, e.PIDDomain)
+		ep, err := r.openUser(filepath.Dir(e.SocketPath), e.PIDDomain)
 		if err != nil {
 			return nil, fmt.Errorf("open user endpoint: %w", err)
 		}
@@ -506,15 +509,41 @@ func watchLoop(ctx context.Context, r *runner, watch func(context.Context) (<-ch
 	}
 }
 
+// openUser binds the user endpoint. Without -n a taken ircc-<user>.sock falls back to
+// <user>-<cwd basename>, then <user>-<cwd basename>2, 3, ...
+func (r *runner) openUser(socks, pidDomain string) (*peer.Endpoint, error) {
+	ep, err := peer.OpenUser(socks, r.sessDir(), r.procRoot, r.user, pidDomain)
+	if !r.autoNick {
+		return ep, err
+	}
+	wd, _ := os.Getwd()
+	dir := filepath.Base(wd)
+	for n := 0; n < maxNickTries && errors.Is(err, peer.ErrInUse); n++ {
+		name := r.user + "-" + dir
+		if n > 0 {
+			name += strconv.Itoa(n + 1)
+		}
+		if ep, err = peer.OpenUser(socks, r.sessDir(), r.procRoot, name, pidDomain); err == nil {
+			r.user = name
+			r.emit(ui.NickMsg{Nick: name})
+		}
+	}
+	return ep, err
+}
+
 // runTUI wires registry watch, transcript polling and the user endpoint into the App.
-func runTUI(opts ...tea.ProgramOption) int {
+// nick "" means $USER, and a clash is resolved by openUser.
+func runTUI(nick string, opts ...tea.ProgramOption) int {
 	claude, err := claudeDir()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ircc:", err)
 		return 1
 	}
 	// GAP-6 (Vic gate): the user endpoint is named $USER; a session of the same name clashes.
-	user := os.Getenv("USER")
+	user := nick
+	if user == "" {
+		user = os.Getenv("USER")
+	}
 	if user == "" {
 		user = "user"
 	}
@@ -529,6 +558,7 @@ func runTUI(opts ...tea.ProgramOption) int {
 	}
 	var p *tea.Program
 	r := newRunner(claude, procRoot, user, func(msg tea.Msg) { p.Send(msg) })
+	r.autoNick = nick == ""
 	defer r.close()
 	dir, err := roomsDir()
 	if err != nil {

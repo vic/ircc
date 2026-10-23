@@ -28,6 +28,9 @@ type LineMsg struct {
 // NoteMsg adds L to the focused channel (producer notes with no channel of their own).
 type NoteMsg struct{ L model.Line }
 
+// NickMsg sets the user's nick after the endpoint took a fallback name.
+type NickMsg struct{ Nick string }
+
 // RoomsMsg sets the visible room (&) channels to exactly these names.
 type RoomsMsg []string
 
@@ -160,6 +163,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.cmdf(a.m.Current().Name, msg.Cmd)
 	case NoteMsg:
 		a = a.toast(msg.L.Text, false) // runtime notes are notifications, not scrollback
+	case NickMsg:
+		a.user = msg.Nick
 	case ToastMsg:
 		a = a.toast(msg.Text, msg.Err)
 	case tickMsg:

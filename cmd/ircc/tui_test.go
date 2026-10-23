@@ -97,7 +97,7 @@ func TestTUIKeys(t *testing.T) {
 	out := &screen{}
 	done := make(chan int, 1)
 	go func() {
-		done <- runTUI(tea.WithInput(in), tea.WithOutput(io.Discard), tea.WithoutSignals(), tea.WithWindowSize(100, 30), tea.WithFilter(out.frames))
+		done <- runTUI("", tea.WithInput(in), tea.WithOutput(io.Discard), tea.WithoutSignals(), tea.WithWindowSize(100, 30), tea.WithFilter(out.frames))
 	}()
 	type_ := func(s string) {
 		if _, err := keys.Write([]byte(s)); err != nil {
