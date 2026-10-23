@@ -212,3 +212,18 @@ func TestRecentFirstAndTab(t *testing.T) {
 		t.Fatalf("tab tab: %s", cur(a))
 	}
 }
+
+func TestNickColorsEverywhere(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "bob", Text: "ask @carol and @ren"}})
+	v := next.(App).screen()
+	for _, want := range []string{nickStyle("carol").Bold(true).Render("@carol"), nickStyle("ren").Bold(true).Render("@ren"), nickStyle("b").Render("#b")} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q", want)
+		}
+	}
+	if got := ansi.Strip(mentions("x @y z", cell)); got != "x @y z" { // text unchanged
+		t.Fatalf("mentions changed text: %q", got)
+	}
+}

@@ -61,8 +61,11 @@ func ParseCmd(line string) (Cmd, error) {
 	if i := strings.IndexAny(word, " \t"); i >= 0 {
 		word, rest = word[:i], word[i+1:]
 	}
-	if word == "q" {
+	switch word { // aliases
+	case "q":
 		word = string(CmdQuit)
+	case "rm":
+		word = string(CmdClose) // remove a & room: endpoint, saved file and log
 	}
 	name := CmdName(word)
 	n, raw, ok := arity(name)

@@ -25,6 +25,7 @@ func TestParseCmd(t *testing.T) {
 		{"/who", CmdWho, nil, false},
 		{"/quit", CmdQuit, nil, false},
 		{":q", CmdQuit, nil, false},
+		{"/rm &x", CmdClose, []string{"&x"}, false},
 		{"/mode bypass", CmdMode, []string{"bypass"}, false},
 		{"/mode prompting", CmdMode, []string{"prompting"}, false},
 		{"/thinking on", CmdThinking, []string{"on"}, false},

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"hash/fnv"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -29,7 +30,6 @@ var (
 	shortcut = fg("5")
 	prompt   = fg("6").Bold(true)
 	unread   = fg("3").Bold(true)
-	sessName = fg("12")
 	roomName = fg("13")
 	alert    = fg("9").Bold(true)
 	current  = cell.Reverse(true)                                                               // search hit
@@ -119,9 +119,9 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 	}
 	nk := "<" + l.Nick + ">"
 	if after, ok := strings.CutPrefix(r, nk); ok {
-		return fit(cell, lead+nickStyle(l.Nick).Render(nk)+st.Render(after), n)
+		return fit(cell, lead+nickStyle(l.Nick).Render(nk)+mentions(after, st), n)
 	}
-	return fit(cell, lead+st.Render(r), n)
+	return fit(cell, lead+mentions(r, st), n)
 }
 
 // View renders the box layout of DESIGN D:290-299: channels, lines and nicks
@@ -191,7 +191,7 @@ func chanCell(chans []model.Channel, curName string, i int) string {
 		return fit(cell, "", chanW)
 	}
 	c := chans[i]
-	marker, markSt, nameSt := "", cell, sessName
+	marker, markSt, nameSt := "", cell, nickStyle(strings.TrimPrefix(c.Name, "#")) // a session is its main agent nick
 	if c.Kind == model.RoomChan {
 		nameSt = roomName
 	}
@@ -327,7 +327,7 @@ var helpSections = []struct {
 		{"/join &room", "open or create a room"},
 		{"/invite nick &room", "add a session; its nick is its channel without #"},
 		{"/kick nick", "remove a member"},
-		{"/part /close", "hide / remove a room"},
+		{"/part /rm", "hide / remove a room (/rm = /close)"},
 		{"/topic /names /who", "room topic, members"},
 		{"/msg nick text", "one line to one agent"},
 	}},
@@ -344,4 +344,24 @@ func helpText() string {
 		rows = append(rows, "")
 	}
 	return strings.Join(append(rows, keyHint("ctrl+c", "quit", "any key", "close help")), "\n")
+}
+
+// mentionRE is an @nick in text (D:258); teammate nicks carry @session.
+var mentionRE = regexp.MustCompile(`@[A-Za-z0-9_.-]+(@[A-Za-z0-9_.-]+)?`)
+
+// mentions renders s in st with each @nick in that nick's color, bold.
+func mentions(s string, st lipgloss.Style) string {
+	var b strings.Builder
+	last := 0
+	for _, m := range mentionRE.FindAllStringIndex(s, -1) {
+		if m[0] > last {
+			b.WriteString(st.Render(s[last:m[0]]))
+		}
+		b.WriteString(nickStyle(s[m[0]+1 : m[1]]).Bold(true).Render(s[m[0]:m[1]]))
+		last = m[1]
+	}
+	if last < len(s) {
+		b.WriteString(st.Render(s[last:]))
+	}
+	return b.String()
 }
