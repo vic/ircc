@@ -623,8 +623,19 @@ func (a App) pickSource() []string {
 	switch a.pickWhat {
 	case pickChans:
 		out = a.chanNames()
-		for _, n := range chanNicks(a.m.Current(), a.user)[1:] {
-			out = append(out, "@"+n)
+		cur := a.m.Current()
+		nicks := chanNicks(cur, a.user)[1:] // this channel: plain nicks
+		for _, c := range a.m.Channels() {  // other sessions: agents only as agent@session, never plain
+			if c.Kind == model.SessionChan && c.Name != cur.Name {
+				for _, ag := range c.Agents {
+					nicks = append(nicks, ag.Nick+"@"+strings.TrimPrefix(c.Name, "#"))
+				}
+			}
+		}
+		for _, n := range nicks {
+			if !slices.Contains(out, "@"+n) {
+				out = append(out, "@"+n)
+			}
 		}
 	case pickLines:
 		for _, l := range a.lines(a.m.Current()) {

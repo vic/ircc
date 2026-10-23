@@ -694,6 +694,11 @@ func (t *tail) agentsMsg(ch, sid string) (ui.AgentsMsg, bool) {
 			t.sizes[a.Path] = fi.Size()
 			t.busy[a.Path], _ = transcript.Busy(a.Path) // unknown counts as idle
 		}
+		// a nick spawned again (new id, same name) is one nick: busy if any copy is
+		if i := slices.IndexFunc(out, func(x model.Agent) bool { return x.Nick == a.Nick }); i >= 0 {
+			out[i].Busy = out[i].Busy || t.busy[a.Path]
+			continue
+		}
 		out = append(out, model.Agent{Nick: a.Nick, Busy: t.busy[a.Path]})
 	}
 	slices.SortStableFunc(out, func(x, y model.Agent) int {

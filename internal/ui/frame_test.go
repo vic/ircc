@@ -608,3 +608,25 @@ func TestResumeLastChannel(t *testing.T) {
 		t.Fatal("resumed twice")
 	}
 }
+
+func TestSameAgentNameInTwoSessions(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil) // #a #b #c, focus #a
+	for _, ch := range []string{"#a", "#b"} {
+		next, _ := a.Update(AgentsMsg{Ch: ch, Agents: []model.Agent{{Nick: "driver-1"}}})
+		a = next.(App)
+	}
+	if got := candidates("@driver", a.chanNames(), a.nickPool()); strings.Join(got, ",") != "@driver-1,@driver-1@a,@driver-1@b" {
+		t.Fatalf("completion %q", got) // own plain first; other sessions only qualified
+	}
+	a, _ = press(t, a, "ctrl+t")
+	var at []string
+	for _, s := range a.pickSource() {
+		if strings.HasPrefix(s, "@driver") {
+			at = append(at, s)
+		}
+	}
+	if strings.Join(at, ",") != "@driver-1,@driver-1@b" { // NEG: no second plain @driver-1 for #b
+		t.Fatalf("picker %q", at)
+	}
+}

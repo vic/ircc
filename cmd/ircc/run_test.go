@@ -628,3 +628,29 @@ func TestInvitableIncludesTeammates(t *testing.T) {
 		t.Fatalf("invitable %q", got)
 	}
 }
+
+func TestAgentsMsgMergesSameNick(t *testing.T) {
+	f := newFix(t)
+	sub := filepath.Join(filepath.Dir(f.transcript), "sid1", "subagents")
+	if err := os.MkdirAll(sub, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for id, stop := range map[string]string{"adriver-1-aa": "end_turn", "adriver-1-bb": "tool_use"} { // respawned under the same name
+		os.WriteFile(filepath.Join(sub, "agent-"+id+".meta.json"), []byte(`{}`), 0o600)
+		os.WriteFile(filepath.Join(sub, "agent-"+id+".jsonl"), []byte(`{"type":"assistant","message":{"stop_reason":"`+stop+`","content":[]}}`+"\n"), 0o600)
+	}
+	s := &sink{}
+	r := newRunner(f.claude, "/proc", "vic", s.emit)
+	defer r.close()
+	r.onSnapshot(snapshot(t, f))
+	r.poll()
+	for _, m := range s.take() {
+		if am, ok := m.(ui.AgentsMsg); ok {
+			if fmt.Sprint(am.Agents) != "[{driver-1 true}]" {
+				t.Fatalf("agents %v", am.Agents)
+			}
+			return
+		}
+	}
+	t.Fatal("no AgentsMsg")
+}
