@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"ircc/internal/model"
 	"ircc/internal/peer"
+	"ircc/internal/registry"
 	"ircc/internal/rooms"
 	"ircc/internal/transcript"
 	"ircc/internal/ui"
@@ -91,6 +93,46 @@ func (r *runner) invitable(rooms.Room) []rooms.Endpoint {
 		}
 	}
 	return out
+}
+
+// whois describes the session nick or teammate <agent>@<session> from the registry
+// and its transcript: pid, session, cwd, status, mode, or model, type, depth.
+func (r *runner) whois(nick string) (string, error) {
+	type sess struct {
+		pid                   int
+		main, sid, path, mode string
+		cwd                   string
+		busy                  bool
+	}
+	r.mu.Lock()
+	var ss []sess
+	for pid, e := range r.live {
+		s := sess{pid: pid, main: strings.TrimPrefix(r.names[pid], "#"), sid: e.SessionID, cwd: e.Cwd, busy: e.Status == registry.Busy}
+		if t := r.tails[pid]; t != nil {
+			s.path, s.mode = t.path, t.mode
+		}
+		ss = append(ss, s)
+	}
+	r.mu.Unlock()
+	for _, s := range ss { // transcript reads happen outside r.mu
+		if nick == s.main {
+			st := "idle"
+			if s.busy {
+				st = "busy"
+			}
+			return fmt.Sprintf("%s: pid %d session %s cwd %s status %s mode %s", s.main, s.pid, s.sid, s.cwd, st, s.mode), nil
+		}
+		if s.path == "" {
+			continue
+		}
+		as, _ := transcript.Subagents(filepath.Dir(s.path), s.sid)
+		for _, a := range as {
+			if a.Nick+"@"+s.main == nick {
+				return fmt.Sprintf("%s: type %s model %s depth %d %s", nick, a.Type, a.Model, a.Depth, a.Description), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no session or teammate %s", nick)
 }
 
 func (r *runner) openRoom(name rooms.Name) (rooms.Room, *peer.Endpoint, error) {

@@ -41,6 +41,7 @@ type cmds struct {
 	inviteFn func(send rooms.SendFunc, dir string, roomAddr peer.Addr, room rooms.Room, ends []rooms.Endpoint, nick string) (rooms.Room, error)
 	ends     func(rooms.Room) []rooms.Endpoint
 	sendCh   func(ch, text string) error
+	whois    func(nick string) (string, error) // Claude data of a session or teammate
 
 	mu     sync.Mutex
 	hidden map[string]bool // parted rooms: kept by the runtime, not shown
@@ -58,7 +59,7 @@ func (c *cmds) cmd(ch string, cm model.Cmd) tea.Cmd {
 }
 
 // do runs cm; ch is the focused channel, the default room of /part /close
-// /topic /kick /names /who.
+// /topic /kick /names /whois.
 func (c *cmds) do(ch string, cm model.Cmd) error {
 	args := cm.Args()
 	switch cm.Name() {
@@ -80,8 +81,15 @@ func (c *cmds) do(ch string, cm model.Cmd) error {
 			t = "#" + t
 		}
 		return c.sendCh(t, args[1])
-	case model.CmdNames, model.CmdWho:
+	case model.CmdNames:
 		return c.members(roomArg(args, ch))
+	case model.CmdWhois:
+		text, err := c.whois(args[0])
+		if err != nil {
+			return err
+		}
+		c.emit(ui.NoteMsg{L: dim(text)})
+		return nil
 	}
 	return fmt.Errorf("command %q is not handled here", cm.Name())
 }

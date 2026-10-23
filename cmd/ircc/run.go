@@ -573,7 +573,7 @@ func runTUI(nick string, opts ...tea.ProgramOption) int {
 	r.rt = newRoomRT(dir, "", r.sessDir(), procRoot, self) // socks dir set by the first live session
 	r.rt.onOpen = r.serveRoom
 	defer r.rt.shutdown()
-	cs := &cmds{rt: r.rt, dir: dir, emit: r.emit, send: r.sendTo, inviteFn: rooms.Invite, ends: r.invitable, sendCh: r.send}
+	cs := &cmds{rt: r.rt, dir: dir, emit: r.emit, send: r.sendTo, inviteFn: rooms.Invite, ends: r.invitable, sendCh: r.send, whois: r.whois}
 	last := filepath.Join(filepath.Dir(dir), "last") // the channel ircc was on when it last quit
 	prev, _ := os.ReadFile(last)                     // none yet: start on the first channel
 	app := ui.New(m, r.send).WithUser(user).WithCmd(cs.cmd).WithLiteral(r.sendLiteral).WithResume(strings.TrimSpace(string(prev)))

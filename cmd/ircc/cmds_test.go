@@ -260,8 +260,9 @@ func TestCmdInviteKickNames(t *testing.T) {
 	if err := f.do(t, "&r", "/names"); err != nil || !strings.Contains(f.lastNote(), "dave") {
 		t.Fatalf("names: %v %q", err, f.lastNote())
 	}
-	if err := f.do(t, "&r", "/who"); err != nil || !strings.Contains(f.lastNote(), "dave") {
-		t.Fatalf("who: %v %q", err, f.lastNote())
+	f.c.whois = func(nick string) (string, error) { return nick + ": model m", nil }
+	if err := f.do(t, "&r", "/whois dave"); err != nil || !strings.Contains(f.lastNote(), "dave: model m") {
+		t.Fatalf("whois: %v %q", err, f.lastNote())
 	}
 	if err := f.do(t, "&r", "/kick nobody"); err == nil {
 		t.Fatal("kick of a non-member: want error")
