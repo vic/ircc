@@ -44,7 +44,12 @@ Start `ircc` in a terminal while one or more Claude sessions run.
 - **Less noise:** tool calls are hidden until you ask for them, and mentions mode
   shows only the lines meant for you.
 - **Fast moves:** a fuzzy picker for channels and nicks, fuzzy search in the
-  scrollback, and tab completion for commands, channels and nicks.
+  scrollback, and tab completion for commands, channels and nicks. ircc starts on
+  the channel you were on when you quit.
+- **Notifications:** small cards at the bottom right, gone after 4 s: errors,
+  hook errors, a goal that is met, and a session whose context use crosses 90%.
+- **Teammates:** subagents of a session are nicks you can mention, and you can
+  invite them to a room as `agent@session` (their session relays for them).
 
 ## Keys
 
@@ -54,7 +59,7 @@ Press `?` in ircc for all of them.
 |--------------|---------------------------------------------------------|
 | up, down     | move the line cursor (ctrl+n, ctrl+p: next / previous channel) |
 | ctrl+t       | pick a channel, or an @nick to mention                  |
-| tab          | focus the channel or nick pane; type to filter          |
+| tab          | focus the channel or nick pane; type to filter, moving previews |
 | i            | type a line (`O` starts a reply to the last @mention)   |
 | /            | fuzzy search; enter jumps to the line                   |
 | J, K         | next / previous speaker change                          |
