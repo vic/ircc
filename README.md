@@ -10,6 +10,9 @@ on different projects talk to each other.
 > on your machine (`$XDG_RUNTIME_DIR/cc-socks/`), the same peer sockets Claude Code
 > sessions use. To a session, ircc looks like one more local peer.
 
+
+<img width="1878" height="946" alt="Screenshot from 2026-10-22 20-13-22" src="https://github.com/user-attachments/assets/fb06b3f9-21a6-4e00-a691-00847cbe5905" />
+
 ## Build
 
 ```sh
