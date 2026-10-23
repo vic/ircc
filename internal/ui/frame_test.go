@@ -793,3 +793,29 @@ func TestCmdUsageHint(t *testing.T) {
 		t.Fatalf("plain %q", hint())
 	}
 }
+
+func TestClickChannelAndNick(t *testing.T) {
+	a := scrollApp(t) // 80x10: channels #a #b #c in the left pane, rows 1..3
+	click := func(x, y int) {
+		next, _ := a.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+		a = next.(App)
+	}
+	click(2, 2) // second channel row
+	if cur(a) != "#b" {
+		t.Fatalf("click channel row 2: %s", cur(a))
+	}
+	click(2, 9) // NEG: past the last channel row
+	if cur(a) != "#b" {
+		t.Fatalf("click empty channel row: %s", cur(a))
+	}
+	_, nk := a.paneItems(focusNicks) // bare names; the pane shows them with marks
+	nx := a.w - nickW - 2            // first column of the nick pane border
+	click(nx+1, 1)                   // first nick row
+	if a.mode != Insert || a.in.Value() != "@"+nk[0]+" " {
+		t.Fatalf("click nick: mode %v input %q", a.mode, a.in.Value())
+	}
+	click(40, 2) // NEG: middle of the chat pane mentions nothing
+	if a.in.Value() != "@"+nk[0]+" " {
+		t.Fatalf("click chat pane changed input: %q", a.in.Value())
+	}
+}

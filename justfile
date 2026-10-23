@@ -7,5 +7,8 @@ test:
 fmt:
     nix-shell -p go --run 'go fmt ./...'
 
+run:
+    nix-shell -p go --run 'go run ./...'
+
 vet:
     nix-shell -p go --run 'go vet ./...'

@@ -195,6 +195,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.in, cmd = a.in.Update(msg)
 			return a, cmd
 		}
+	case tea.MouseClickMsg:
+		if msg.Button == tea.MouseLeft && !a.help && !a.pick && a.prompt == 0 {
+			return a.click(tea.Mouse(msg))
+		}
 	case tea.MouseWheelMsg:
 		if a.help { // the wheel scrolls the help box while it is open
 			step := wheelRows
@@ -1002,10 +1006,7 @@ func (a App) paneStep(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if a.focus == focusChans {
 			a = a.focusName(names[a.fsel])
 		} else {
-			a.mode = Insert
-			a.in.SetValue(a.in.Value() + "@" + names[a.fsel] + " ")
-			a.in.CursorEnd()
-			a.in.Focus()
+			a = a.mention(names[a.fsel])
 		}
 		a.focus = focusChat
 	default:
@@ -1014,6 +1015,35 @@ func (a App) paneStep(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return a, nil
+}
+
+// click handles a left click in wide mode: a channel row switches to that channel,
+// a nick row starts an insert line mentioning it (vic 2026-10-23). Row 0 is the pane title.
+func (a App) click(m tea.Mouse) (tea.Model, tea.Cmd) {
+	if !wide(a.w, a.h) || m.Y < 1 {
+		return a, nil
+	}
+	i := m.Y - 1
+	switch {
+	case m.X < chanW+2: // the channel pane and its borders
+		if _, names := a.paneItems(focusChans); i < len(names) {
+			a = a.focusName(names[i])
+		}
+	case m.X >= a.w-nickW-2: // the nick pane and its borders
+		if _, names := a.paneItems(focusNicks); i < len(names) {
+			a = a.mention(names[i])
+		}
+	}
+	return a, nil
+}
+
+// mention starts an insert line with @nick, after any text already typed.
+func (a App) mention(nick string) App {
+	a.mode = Insert
+	a.in.SetValue(a.in.Value() + "@" + nick + " ")
+	a.in.CursorEnd()
+	a.in.Focus()
+	return a
 }
 
 func (a App) sides() sidePanes {
