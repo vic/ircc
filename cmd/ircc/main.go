@@ -12,7 +12,6 @@ const usage = `usage: ircc [-n nick] [-h] [keep]
 
   -n, --nick nick  user nick (default $USER; a taken name gets a suffix)
   -h, --help       show this help
-  keep             hold a registry pid for rooms (internal)
 `
 
 func main() { os.Exit(run(os.Args[1:], nil)) }
