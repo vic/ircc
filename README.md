@@ -41,8 +41,8 @@ Each GitHub release gets Linux binaries (amd64, arm64) from
 
 Start `ircc` in a terminal while one or more Claude sessions run.
 
-1. Every live session is a `#` channel. Use `ctrl+o` or `ctrl+n` / `ctrl+p` to move between them.
-2. Press `i`, type a line, and press `Enter` to send it to the session. `Esc` goes back.
+1. Every live session is a `#` channel. Use `ctrl+o` to pick one, or `ctrl+n` / `ctrl+p` in NORMAL mode to move between them.
+2. Press `i`, type a line, and press `Enter` to send it to the session. `shift+Enter` adds a new line in the same message. The input grows as you type. `Esc` goes back.
 3. Create a room: `/join &review`.
 4. Add sessions to the room: `/invite <nick> &review`. The nick is the channel name
    without `#`. The session gets an invite and replies to `&review`.
@@ -59,8 +59,21 @@ Start `ircc` in a terminal while one or more Claude sessions run.
 - **Less noise:** tool calls are hidden until you ask for them, and mentions mode
   shows only the lines meant for you.
 - **Fast moves:** a fuzzy picker for channels and nicks, fuzzy search in the
-  scrollback, and tab completion for commands, channels and nicks. ircc starts on
-  the channel you were on when you quit.
+  scrollback (matches light up as you type; up and down pick the current hit), and
+  tab completion for commands, channels and nicks. ircc starts on the channel you
+  were on when you quit.
+- **Find things:** `ctrl+g` filters the scrollback to lines that contain your text
+  (case-insensitive, matches highlighted). `S` shows one or more speakers.
+- **Send files and output:** `ctrl+t` finds a file and puts its path in the input.
+  `ctrl+f` finds a file and puts its content in a fenced block, with the path on the
+  opening line. `$` runs a shell command in your terminal (ircc waits for Enter to
+  come back). `!` runs a command and puts its output in a fenced block in the input.
+  `:` sends a line to the session as is.
+- **Input history:** in INSERT, `ctrl+p` and `ctrl+n` step back and forward through
+  the lines you sent in this run. The history is not saved.
+- **Click:** a file path in a message opens in `$EDITOR`. A `code span` in a message
+  fills the `:` prompt with `!` and the command.
+- **Current message:** the message you select has a bar in the left gutter.
 - **Notifications:** small cards at the bottom right, gone after 4 s: errors,
   hook errors, a goal that is met, and a session whose context filled up and was
   compacted.
@@ -73,22 +86,30 @@ Press `?` in ircc for all of them.
 
 | key          | action                                                  |
 |--------------|---------------------------------------------------------|
-| up, down     | move the line cursor (ctrl+n, ctrl+p: next / previous channel) |
+| up, down     | move the line cursor (in INSERT with several lines: move in the input) |
+| ctrl+n, ctrl+p | next / previous channel (NORMAL); previous / next sent line (INSERT) |
 | ctrl+o       | pick a channel, or an @nick to mention                  |
+| ctrl+t       | pick a file; enter puts its path in the input           |
+| ctrl+f       | pick a file; enter puts its content in a fenced block   |
+| ctrl+g       | grep: show only the lines that contain the text         |
 | tab          | focus the channel or nick pane; type to filter, moving previews |
 | i, a, o      | type a line (`O` starts a reply to the last @mention)   |
+| shift+Enter  | new line in the input                                   |
 | I            | invite someone to this room (fuzzy pick)                |
-| /            | fuzzy search; enter jumps to the line                   |
+| /            | fuzzy search: matches highlight as you type; up and down pick the hit |
 | J, K         | next / previous speaker change                          |
-| S            | show only one speaker (fuzzy pick; `(all)` clears)      |
+| S            | show only some speakers (space marks, enter applies; `(all)` clears) |
 | y            | copy the cursor line to the clipboard                   |
+| $            | run a shell command locally (suspends ircc)             |
+| !            | run a shell command, insert its output as a fenced block |
 | shift+drag   | select text with the mouse (the terminal does it)       |
-| wheel, j, k  | scroll (vim keys too: ctrl+d/u, gg/G, gt/gT, n/N for hits) |
+| wheel, j, k  | scroll (vim keys too: ctrl+d/u, gg/G, gt/gT)            |
 | t, m, s      | toggle tool lines, mentions only, times                 |
 | :            | send a line as is to the session                        |
 
 Commands, typed in INSERT: `/join`, `/part`, `/rm`, `/invite`, `/kick`, `/topic`,
-`/names`, `/who`, `/msg`, `/help`, `/quit`.
+`/names`, `/who`, `/msg`, `/help`, `/quit`. In the `:`, `$` and `!` prompts,
+`ctrl+t` picks a file and puts its path in the prompt.
 
 A session can also send to a room itself: it sends to `&review` with its
 SendMessage tool.
