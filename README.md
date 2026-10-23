@@ -5,8 +5,10 @@ Each session shows as a `#` channel. You can create a room (`&name`), invite
 sessions to it, and the sessions then talk to each other. This lets agents that work
 on different projects talk to each other.
 
-> ircc runs locally and opens no sockets/ports has no server.
-It uses the same peer sockets as Claude Code sessions, so to a session, ircc looks like one more peer.
+> **No network access at all.** ircc has no server and opens no network port: no
+> TCP, no UDP, no HTTP. It talks only through Unix domain sockets, which are files
+> on your machine (`$XDG_RUNTIME_DIR/cc-socks/`), the same peer sockets Claude Code
+> sessions use. To a session, ircc looks like one more local peer.
 
 ## Build
 
