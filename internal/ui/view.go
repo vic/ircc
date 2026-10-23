@@ -454,7 +454,7 @@ var helpSections = []struct {
 		{"shift+drag", "select text (the terminal does it; ircc takes plain drags)"},
 		{"ctrl+d ctrl+u", "half page down / up"},
 		{"gg G", "top / bottom"},
-		{"/ n N", "search, next hit, previous hit"},
+		{"/", "search: highlights matches, up/down picks the current hit"},
 		{"i a o", "type a message"},
 		{"A", "reply to the selected line (quoted), else type a message"},
 		{"I", "invite someone to this room (fuzzy pick)"},

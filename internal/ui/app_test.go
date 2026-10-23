@@ -236,14 +236,6 @@ func TestAppSearch(t *testing.T) {
 	if a.hit != 1 {
 		t.Fatalf("first hit %d", a.hit)
 	}
-	a, _ = press(t, a, "n")
-	if a.hit != 3 {
-		t.Fatalf("n: %d", a.hit)
-	}
-	a, _ = press(t, a, "N")
-	if a.hit != 1 {
-		t.Fatalf("N: %d", a.hit)
-	}
 	// NEG: no match leaves hit unchanged
 	a, _ = press(t, a, "/")
 	a = typeText(t, a, "zzz")

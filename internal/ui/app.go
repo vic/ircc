@@ -338,8 +338,6 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		switch k {
 		case "/":
 			return a.openPick(pickLines), nil
-		case "n", "N":
-			return a.searchStep(k == "N"), nil
 		case "esc": // NORMAL esc clears the selected line, the search highlights, the input text and the reply
 			a.hit, a.quote, a.query = -1, nil, ""
 			a.in.Reset()
@@ -453,15 +451,6 @@ func (a App) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	return a, nil
-}
-
-// searchStep moves hit to the next (or previous) match of the last query.
-func (a App) searchStep(back bool) App {
-	c := a.m.Current()
-	if i, ok := Search(a.lines(c), a.query, a.hit, back); ok {
-		a.hit = i
-	}
-	return a
 }
 
 func (a App) switchChan(act Action) App {
