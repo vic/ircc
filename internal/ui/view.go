@@ -530,3 +530,23 @@ func overlayToasts(screen string, w, bottom int, ts []toast) string {
 	}
 	return strings.Join(rows, "\n")
 }
+
+// overlaySuggest draws the completion row in a small box over the screen, its
+// bottom border on row bottom, from column 1: it floats above the prompt
+// (vic 2026-10-23), so no layout row moves.
+func overlaySuggest(screen string, w, bottom int, sugg []string) string {
+	if len(sugg) == 0 || bottom < 2 {
+		return screen
+	}
+	box := strings.Split(lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("5")).
+		Padding(0, 1).Render(strings.Join(sugg, "\n")), "\n")
+	rows := strings.Split(screen, "\n")
+	bw := lipgloss.Width(box[0])
+	for j := len(box) - 1; j >= 0 && bottom >= 0; j-- {
+		if bottom < len(rows) {
+			rows[bottom] = ansi.Cut(rows[bottom], 0, 1) + box[j] + ansi.Cut(rows[bottom], 1+bw, w)
+		}
+		bottom--
+	}
+	return strings.Join(rows, "\n")
+}

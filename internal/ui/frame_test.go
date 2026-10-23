@@ -673,3 +673,21 @@ func TestToastCard(t *testing.T) {
 		t.Fatalf("card row %d of %d", at, len(rows))
 	}
 }
+
+func TestSuggestFloats(t *testing.T) {
+	var log []sent
+	a, _ := press(t, newApp(t, &log, nil), "i")
+	a = typeText(t, a, "/i")
+	before, page := strings.Split(a.screen(), "\n"), a.page()
+	a = typeText(t, a, "nv") // now there is a suggestion
+	after := strings.Split(a.screen(), "\n")
+	if a.page() != page || after[0] != before[0] || after[1] != before[1] { // NEG: no layout row moved
+		t.Fatalf("layout moved: page %d -> %d", page, a.page())
+	}
+	s := ansi.Strip(strings.Join(after, "\n"))
+	rows := strings.Split(s, "\n")
+	if !strings.Contains(rows[len(rows)-4], "/invite") || !strings.HasPrefix(rows[len(rows)-1], "> /inv") {
+		t.Fatalf("no floating box above the prompt:\n%s", s)
+	}
+	checkFrame(t, a, a.w, a.h)
+}

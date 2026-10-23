@@ -9,6 +9,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"ircc/internal/model"
 )
@@ -449,15 +450,16 @@ func (a App) screen() string {
 		return pickView(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel)
 	}
 	label, input, hint := a.inputLine()
-	screen := render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.sides(), a.lines(a.m.Current()), a.wrap(), a.suggest(), hint)
-	modeline := a.h - len(inputRows(input, a.w, a.h)) - len(a.suggest()) - 1
-	return overlayToasts(screen, a.w, modeline-1, a.toasts) // cards sit just above the modeline
+	screen := render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.sides(), a.lines(a.m.Current()), a.wrap(), nil, hint)
+	modeline := a.h - len(inputRows(input, a.w, a.h)) - 1
+	screen = overlaySuggest(screen, a.w, modeline-1, a.suggest()) // floats above the prompt: the layout does not move
+	return overlayToasts(screen, a.w, modeline-1, a.toasts)       // cards sit just above the modeline
 }
 
 // page is the number of scrollback rows View shows; a long input takes rows from it.
 func (a App) page() int {
 	_, input, _ := a.inputLine()
-	return paneRows(a.w, a.h, len(inputRows(input, a.w, a.h))+len(a.suggest()))
+	return paneRows(a.w, a.h, len(inputRows(input, a.w, a.h)))
 }
 
 // off is the current channel's scroll offset.
@@ -772,7 +774,7 @@ func (a App) suggest() []string {
 		}
 		parts = append(parts, shortcut.Bold(true).Render(c[:len(word)])+st.Render(c[len(word):]))
 	}
-	return []string{fit(cell, dimmed.Render("tab ")+strings.Join(parts, "  "), max(a.w, 1))}
+	return []string{ansi.Truncate(dimmed.Render("tab ")+strings.Join(parts, "  "), max(a.w-6, 1), "…")} // fits in the box
 }
 
 // chanKind is the kind a channel name has: & rooms, else # sessions.
