@@ -378,17 +378,31 @@ func chanNicks(c model.Channel, user string) []string {
 }
 
 // helpView is the help box centered in exactly w x h cells.
-func helpView(w, h int) string {
+func helpView(w, h, off int) string {
 	if w < 1 || h < 1 {
 		return ""
 	}
-	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("8")).Padding(0, 1).Render(helpText())
-	rows := strings.Split(lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box), "\n")[:h]
+	box := strings.Split(lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("8")).Padding(0, 1).Render(helpText()), "\n")
+	if len(box) <= h {
+		rows := strings.Split(lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, strings.Join(box, "\n")), "\n")[:h]
+		for i, r := range rows {
+			rows[i] = fit(cell, r, w)
+		}
+		return strings.Join(rows, "\n")
+	}
+	off = helpOff(len(box), h, off) // taller than the screen: a window that scrolls
+	rows := box[off : off+h]
 	for i, r := range rows {
-		rows[i] = fit(cell, r, w)
+		rows[i] = fit(cell, lipgloss.PlaceHorizontal(w, lipgloss.Center, r), w)
 	}
 	return strings.Join(rows, "\n")
 }
+
+// helpOff clamps a help scroll offset for a box of n rows in h rows.
+func helpOff(n, h, off int) int { return min(max(off, 0), max(n-h, 0)) }
+
+// helpRows is how many rows the help box has.
+func helpRows() int { return strings.Count(helpText(), "\n") + 3 } // text rows + top and bottom border
 
 // helpSections is the ? popup: a heading, then key and description pairs.
 var helpSections = []struct {

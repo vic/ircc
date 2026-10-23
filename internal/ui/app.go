@@ -103,6 +103,7 @@ type App struct {
 	speaker  string          // S: show only this nick's lines; "" all
 	resumeTo string          // channel to focus once it shows up (the last one of the previous run)
 	toasts   []toast         // notification cards, newest last; the tick drops old ones
+	helpOff  int             // help box scroll (j k, wheel) when it is taller than the screen
 	pq       textinput.Model // picker query (own input: a typed message survives)
 	psel     int             // picker selection, an index in pickList
 	comp     completion      // tab completion state of the INSERT line
@@ -195,6 +196,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, cmd
 		}
 	case tea.MouseWheelMsg:
+		if a.help { // the wheel scrolls the help box while it is open
+			step := wheelRows
+			if msg.Button == tea.MouseWheelUp {
+				step = -wheelRows
+			}
+			return a.helpScroll(step), nil
+		}
 		switch msg.Button {
 		case tea.MouseWheelUp:
 			a = a.scroll(Action{Scroll, -wheelRows})
@@ -219,7 +227,17 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a.pickKey(msg)
 	}
 	if a.help {
-		a.help = false
+		switch k { // scroll keys move the box; any other key closes it
+		case "j", "down":
+			return a.helpScroll(1), nil
+		case "k", "up":
+			return a.helpScroll(-1), nil
+		case "ctrl+d":
+			return a.helpScroll(a.h / 2), nil
+		case "ctrl+u":
+			return a.helpScroll(-a.h / 2), nil
+		}
+		a.help, a.helpOff = false, 0
 		return a, nil
 	}
 	if a.prompt != 0 {
@@ -433,6 +451,9 @@ func (a App) inputLine() (label, input, hint string) {
 	case a.prompt == promptCmd:
 		return "NORMAL", ":" + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send as is", "esc", "cancel")
 	case a.mode == Insert:
+		if u := a.cmdUsage(); u != "" { // typing a /command: its usage is the hint (vic 2026-10-23)
+			return "INSERT", "> " + withCursor(a.in.Value(), a.in.Position()), u
+		}
 		return "INSERT", "> " + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "pick", "esc", "normal")
 	case a.focus == focusChans:
 		return "CHANNELS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "join", "tab", "nicks", "esc", "chat")
@@ -460,7 +481,7 @@ func (a App) View() tea.View {
 
 func (a App) screen() string {
 	if a.help {
-		return helpView(a.w, a.h)
+		return helpView(a.w, a.h, a.helpOff)
 	}
 	if a.pick {
 		what := [...]string{pickChans: "channel / @nick", pickLines: "search", pickSpeakers: "speaker", pickInvite: "invite to " + a.m.Current().Name}[a.pickWhat]
@@ -1078,4 +1099,27 @@ func agentsAt(c model.Channel, session string) []string {
 		out = append(out, ag.Nick+"@"+session)
 	}
 	return out
+}
+
+func (a App) helpScroll(n int) App {
+	a.helpOff = helpOff(helpRows(), a.h, a.helpOff+n)
+	return a
+}
+
+// cmdUsage is the usage of the /command being typed in INSERT, as hint text: every
+// command that matches the first word, or "" when the line is not a command.
+func (a App) cmdUsage() string {
+	word, _, _ := strings.Cut(a.in.Value(), " ")
+	rest, ok := strings.CutPrefix(word, "/")
+	if !ok {
+		return ""
+	}
+	us := model.Usages(rest)
+	if len(us) == 0 {
+		return alert.Render("unknown command")
+	}
+	for i, u := range us {
+		us[i] = shortcut.Render(u)
+	}
+	return dimmed.Render("usage ") + strings.Join(us, dimmed.Render("  ·  "))
 }

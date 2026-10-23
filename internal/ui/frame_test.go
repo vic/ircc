@@ -67,7 +67,7 @@ func TestHelpAndArrows(t *testing.T) {
 		if v := checkFrame(t, a, sz[0], sz[1]); !strings.Contains(v, "one # channel per Claude session") {
 			t.Fatalf("%v: no help on screen", sz)
 		}
-		a, _ = press(t, a, "j") // closes help, does not scroll
+		a, _ = press(t, a, "esc") // closes help (j k scroll it now)
 		if a.help || strings.Contains(checkFrame(t, a, sz[0], sz[1]), "one # channel per Claude session") {
 			t.Fatalf("%v: help still shown", sz)
 		}
@@ -744,5 +744,52 @@ func TestInvitePicker(t *testing.T) {
 	cm, ok := cmd().(CmdMsg)
 	if !ok || a.pick || cm.Cmd.Name() != model.CmdInvite || strings.Join(cm.Cmd.Args(), " ") != "driver-1@b &r" {
 		t.Fatalf("invite cmd %#v", cmd())
+	}
+}
+
+func TestHelpScrolls(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	next, _ := a.Update(tea.WindowSizeMsg{Width: 100, Height: 12}) // help is taller than 12 rows
+	a, _ = press(t, next.(App), "?")
+	top := ansi.Strip(a.screen())
+	a, _ = press(t, a, "j", "j")
+	if a.helpOff != 2 || ansi.Strip(a.screen()) == top || !a.help {
+		t.Fatalf("j j: off %d", a.helpOff)
+	}
+	next, _ = a.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+	if a = next.(App); a.helpOff != 0 { // wheel up 3, clamped at 0
+		t.Fatalf("wheel: off %d", a.helpOff)
+	}
+	for i := 0; i < 99; i++ {
+		a, _ = press(t, a, "j")
+	}
+	checkFrame(t, a, 100, 12)
+	if a.helpOff != helpRows()-12 { // NEG: stops at the bottom
+		t.Fatalf("bottom: off %d of %d", a.helpOff, helpRows())
+	}
+}
+
+func TestCmdUsageHint(t *testing.T) {
+	var log []sent
+	a, _ := press(t, newApp(t, &log, nil), "i")
+	hint := func() string { _, _, h := a.inputLine(); return ansi.Strip(h) }
+	a = typeText(t, a, "/inv")
+	if hint() != "usage /invite <nick> &room" {
+		t.Fatalf("inv %q", hint())
+	}
+	a = typeText(t, a, " dave &r") // the usage stays while typing the args
+	if hint() != "usage /invite <nick> &room" {
+		t.Fatalf("args %q", hint())
+	}
+	a, _ = press(t, newApp(t, &log, nil), "i")
+	a = typeText(t, a, "/zz")
+	if hint() != "unknown command" {
+		t.Fatalf("zz %q", hint())
+	}
+	a, _ = press(t, newApp(t, &log, nil), "i")
+	a = typeText(t, a, "hello")
+	if !strings.Contains(hint(), "enter send") { // NEG: plain text keeps the INSERT keys
+		t.Fatalf("plain %q", hint())
 	}
 }

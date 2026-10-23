@@ -113,3 +113,22 @@ var usage = map[CmdName]string{
 	CmdQuit:   "/quit",
 	CmdHelp:   "/help",
 }
+
+// Usages lists the usage of every command whose word starts with prefix (no "/"),
+// in CmdWords order; aliases show their command's usage once.
+func Usages(prefix string) []string {
+	var out []string
+	for _, w := range CmdWords {
+		if !strings.HasPrefix(w, prefix) {
+			continue
+		}
+		u := usage[CmdName(w)]
+		if w == "rm" {
+			u = usage[CmdClose]
+		}
+		if u != "" && !slices.Contains(out, u) {
+			out = append(out, u)
+		}
+	}
+	return out
+}
