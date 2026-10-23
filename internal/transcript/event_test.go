@@ -190,3 +190,24 @@ func TestNotices(t *testing.T) {
 		}
 	}
 }
+
+func TestTaskNotificationIsNotice(t *testing.T) {
+	in := `{"type":"user","message":{"role":"user","content":"<task-notification>\n<task-id>a1</task-id>\n<status>failed</status>\n<summary>Agent \"x\" failed</summary>\n</task-notification>"}}`
+	e, err := ParseEvent([]byte(in))
+	if err != nil || e.Notice == nil || e.Notice.Text != `Agent "x" failed` || !e.Notice.Err || e.Blocks != nil {
+		t.Fatalf("task notification: notice %+v blocks %v err %v", e.Notice, e.Blocks, err)
+	}
+}
+
+func TestSystemReminderIsNotice(t *testing.T) {
+	in := `{"type":"user","message":{"content":"<system-reminder>\nTask tools\n  are idle.\n</system-reminder>"}}`
+	e, err := ParseEvent([]byte(in))
+	if err != nil || e.Notice == nil || e.Notice.Text != "Task tools are idle." || e.Blocks != nil {
+		t.Fatalf("reminder-only: notice %+v blocks %v err %v", e.Notice, e.Blocks, err)
+	}
+	mixed := `{"type":"user","message":{"content":"hi <system-reminder>x</system-reminder> there"}}`
+	e, err = ParseEvent([]byte(mixed))
+	if err != nil || e.Notice == nil || e.Notice.Text != "x" || len(e.Blocks) != 1 || e.Blocks[0].Text != "hi  there" {
+		t.Fatalf("mixed: notice %+v blocks %v err %v", e.Notice, e.Blocks, err)
+	}
+}

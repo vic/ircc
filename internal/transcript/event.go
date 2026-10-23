@@ -76,11 +76,17 @@ func ParseEvent(line []byte) (Event, error) {
 		}
 		e.Blocks = bs
 	}
+	var rem *Notice
+	if r.Type == "user" {
+		e.Blocks, rem = stripReminders(e.Blocks)
+	}
 	if n, only := r.notice(e.Blocks); n != nil || only {
 		e.Notice = n
 		if only {
 			e.Blocks = nil
 		}
+	} else if rem != nil {
+		e.Notice = rem
 	}
 	if r.Type == "system" && r.Subtype == "informational" && r.Level == "warning" && strings.HasPrefix(r.Content, heldPrefix) {
 		// Fail loud: a held line that cannot be attributed (from, pid, preview) is an error,
@@ -215,6 +221,52 @@ type Notice struct {
 	Err  bool
 }
 
+var (
+	summaryRE = regexp.MustCompile(`(?s)<summary>(.*?)</summary>`)
+	statusRE  = regexp.MustCompile(`<status>(.*?)</status>`)
+)
+
+// taskNotice is the toast for a <task-notification> (background task finished): its
+// summary, red unless the status is completed.
+func taskNotice(t string) *Notice {
+	st := ""
+	if m := statusRE.FindStringSubmatch(t); m != nil {
+		st = m[1]
+	}
+	text := "task " + st
+	if m := summaryRE.FindStringSubmatch(t); m != nil {
+		text = m[1]
+	}
+	return &Notice{Text: text, Err: st != "" && st != "completed"}
+}
+
+// reminderRE is a <system-reminder> block Claude puts in user text.
+var reminderRE = regexp.MustCompile(`(?s)<system-reminder>(.*?)</system-reminder>`)
+
+// stripReminders cuts <system-reminder> blocks out of text blocks. Their text becomes
+// one notice (shown as a toast, not a line); text left over stays as blocks.
+func stripReminders(bs []Block) ([]Block, *Notice) {
+	var out []Block
+	var texts []string
+	for _, b := range bs {
+		if b.Kind != TextBlock {
+			out = append(out, b)
+			continue
+		}
+		for _, m := range reminderRE.FindAllStringSubmatch(b.Text, -1) {
+			texts = append(texts, strings.Join(strings.Fields(m[1]), " "))
+		}
+		if rest := strings.TrimSpace(reminderRE.ReplaceAllString(b.Text, "")); rest != "" {
+			b.Text = rest
+			out = append(out, b)
+		}
+	}
+	if len(texts) == 0 {
+		return bs, nil
+	}
+	return out, &Notice{Text: strings.Join(texts, " · ")}
+}
+
 // hookErrRE is user text Claude records for a failed hook, e.g. "PreToolUse:Bash hook error: ...".
 var hookErrRE = regexp.MustCompile(`^(PreToolUse|PostToolUse|Stop|SubagentStop|SessionStart|SessionEnd|UserPromptSubmit|Notification|PreCompact)(:[A-Za-z_]+)? hook error: `)
 
@@ -242,6 +294,8 @@ func (r rawEvent) notice(blocks []Block) (*Notice, bool) {
 		return nil, false
 	}
 	switch t := blocks[0].Text; {
+	case strings.HasPrefix(t, "<task-notification>"):
+		return taskNotice(t), true
 	case hookErrRE.MatchString(t):
 		return &Notice{Text: t, Err: true}, true
 	case strings.HasPrefix(t, stopFeedback):
