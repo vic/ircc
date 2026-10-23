@@ -95,6 +95,7 @@ type App struct {
 	pickWhat pickKind        // what the picker lists: channels (ctrl+t), lines (/), speakers (S)
 	speaker  string          // S: show only this nick's lines; "" all
 	resumeTo string          // channel to focus once it shows up (the last one of the previous run)
+	flash    string          // one-key message in the footer (yanked ...); the next key clears it
 	pq       textinput.Model // picker query (own input: a typed message survives)
 	psel     int             // picker selection, an index in pickList
 	comp     completion      // tab completion state of the INSERT line
@@ -183,6 +184,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
+	a.flash = ""
 	if k == "ctrl+c" {
 		return a, tea.Quit
 	}
@@ -261,6 +263,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.help = true
 	case ToggleStamps:
 		a.stamps, a.offs = !a.stamps, nil // row counts changed
+	case Yank:
+		return a.yank()
 	case PickSpeaker:
 		return a.openPick(pickSpeakers), nil
 	case PickChan:
@@ -406,6 +410,9 @@ func (a App) inputLine() (label, input, hint string) {
 // footer is the last row outside INSERT: more keys and the toggle states, since
 // there is no input to show (vic 2026-10-23).
 func (a App) footer() string {
+	if a.flash != "" {
+		return fit(cell, " "+dimmed.Render(a.flash), max(a.w, 1))
+	}
 	// states first: on a narrow screen the keys fall off the end (they are in ? help)
 	return fit(cell, " "+keyHint("t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps),
 		"S", "speaker:"+cmp.Or(a.speaker, "all"), "/", "search", "J K", "turns", "O", "reply @", ":", "literal"), max(a.w, 1)) // one row
@@ -985,3 +992,15 @@ func (a App) resume() App {
 
 // Channel is the current channel's name ("" when there is none).
 func (a App) Channel() string { return a.m.Current().Name }
+
+// yank copies the cursor line's text to the system clipboard (OSC 52) (vic 2026-10-23).
+func (a App) yank() (tea.Model, tea.Cmd) {
+	ls := a.lines(a.m.Current())
+	if a.hit < 0 || a.hit >= len(ls) {
+		a.flash = "nothing to yank: ↑ selects a line"
+		return a, nil
+	}
+	text := ls[a.hit].Text
+	a.flash = "yanked: " + strings.ReplaceAll(text, "\n", " ")
+	return a, tea.SetClipboard(text)
+}

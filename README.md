@@ -59,6 +59,7 @@ Press `?` in ircc for all of them.
 | /            | fuzzy search; enter jumps to the line                   |
 | J, K         | next / previous speaker change                          |
 | S            | show only one speaker (fuzzy pick)                      |
+| y            | copy the cursor line to the clipboard                   |
 | wheel, j, k  | scroll                                                  |
 | t, m, s      | toggle tool lines, mentions only, times                 |
 | :            | send a line as is to the session                        |

@@ -40,6 +40,7 @@ const (
 	ToggleStamps
 	PickChan
 	PickSpeaker
+	Yank
 	ReplyMention
 )
 
@@ -97,6 +98,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: PickChan}, Normal, ""
 		case "S":
 			return Action{Kind: PickSpeaker}, Normal, ""
+		case "y":
+			return Action{Kind: Yank}, Normal, ""
 		case "up":
 			return Action{Kind: LineUp}, Normal, ""
 		case "down":

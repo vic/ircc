@@ -630,3 +630,24 @@ func TestSameAgentNameInTwoSessions(t *testing.T) {
 		t.Fatalf("picker %q", at)
 	}
 }
+
+func TestYank(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	a, cmd := press(t, a, "y")
+	if cmd != nil || !strings.Contains(ansi.Strip(a.screen()), "nothing to yank") { // NEG: no cursor line
+		t.Fatalf("no line: cmd %v", cmd)
+	}
+	next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "bob", Text: "copy\nme"}})
+	a, _ = press(t, next.(App), "up")
+	a, cmd = press(t, a, "y")
+	if cmd == nil || fmt.Sprint(cmd()) != fmt.Sprint(tea.SetClipboard("copy\nme")()) {
+		t.Fatalf("clipboard cmd %v", cmd)
+	}
+	if !strings.Contains(ansi.Strip(a.screen()), "yanked: copy me") {
+		t.Fatal("no flash")
+	}
+	if a, _ = press(t, a, "j"); strings.Contains(ansi.Strip(a.screen()), "yanked") { // next key clears it
+		t.Fatal("flash stayed")
+	}
+}
