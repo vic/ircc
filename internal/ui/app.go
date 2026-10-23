@@ -94,6 +94,7 @@ type App struct {
 	pick     bool            // ctrl+t or /: the picker is open
 	pickWhat pickKind        // what the picker lists: channels (ctrl+t), lines (/), speakers (S)
 	speaker  string          // S: show only this nick's lines; "" all
+	resumeTo string          // channel to focus once it shows up (the last one of the previous run)
 	pq       textinput.Model // picker query (own input: a typed message survives)
 	psel     int             // picker selection, an index in pickList
 	comp     completion      // tab completion state of the INSERT line
@@ -114,6 +115,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case SessionsMsg:
 		a.m = a.m.WithSessions(msg)
+		a = a.resume()
 	case LineMsg:
 		if msg.Old {
 			if m, err := a.m.AddHistory(msg.Ch, msg.L); err == nil {
@@ -126,6 +128,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case RoomsMsg:
 		a.m = a.m.WithRooms(msg)
+		a = a.resume()
 	case CmdMsg:
 		if a.cmdf == nil {
 			return a.note("no command handler installed"), nil
@@ -948,3 +951,21 @@ func withCursor(s string, pos int) string {
 	}
 	return string(rs[:pos]) + current.Render(string(rs[pos])) + string(rs[pos+1:])
 }
+
+// WithResume makes ch current as soon as it shows up in the channel list, once:
+// ircc starts on the channel it was on when it last quit (vic 2026-10-23).
+func (a App) WithResume(ch string) App {
+	a.resumeTo = ch
+	return a
+}
+
+func (a App) resume() App {
+	if a.resumeTo == "" || !slices.Contains(a.chanNames(), a.resumeTo) {
+		return a
+	}
+	a, a.resumeTo = a.focusName(a.resumeTo), ""
+	return a
+}
+
+// Channel is the current channel's name ("" when there is none).
+func (a App) Channel() string { return a.m.Current().Name }

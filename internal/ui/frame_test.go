@@ -587,3 +587,24 @@ func TestSpeakerFilter(t *testing.T) {
 		t.Fatalf("clear: %q", a.speaker)
 	}
 }
+
+func TestResumeLastChannel(t *testing.T) {
+	m, err := model.New(20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := New(m, func(string, string) error { return nil }).WithResume("&r")
+	next, _ := a.Update(SessionsMsg{{PID: 1, Name: "a"}})
+	if a = next.(App); a.Channel() != "#a" { // not there yet: first channel
+		t.Fatalf("before: %s", a.Channel())
+	}
+	next, _ = a.Update(RoomsMsg{"&r"})
+	if a = next.(App); a.Channel() != "&r" {
+		t.Fatalf("resume: %s", a.Channel())
+	}
+	a, _ = press(t, a, "ctrl+n")
+	next, _ = a.Update(RoomsMsg{"&r"}) // NEG: only once
+	if a = next.(App); a.Channel() == "&r" {
+		t.Fatal("resumed twice")
+	}
+}

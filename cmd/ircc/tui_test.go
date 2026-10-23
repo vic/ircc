@@ -131,4 +131,7 @@ func TestTUIKeys(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("ctrl+c did not quit")
 	}
+	if b, err := os.ReadFile(filepath.Join(root, "state", "ircc", "last")); err != nil || string(b) != "&x\n" { // the channel it quit on
+		t.Fatalf("last channel %q %v", b, err)
+	}
 }

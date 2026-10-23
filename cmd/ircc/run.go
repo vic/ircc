@@ -541,7 +541,10 @@ func runTUI(opts ...tea.ProgramOption) int {
 	r.rt.onOpen = r.serveRoom
 	defer r.rt.shutdown()
 	cs := &cmds{rt: r.rt, dir: dir, emit: r.emit, send: r.sendTo, inviteFn: rooms.Invite, ends: r.invitable, sendCh: r.send}
-	p = tea.NewProgram(ui.New(m, r.send).WithUser(user).WithCmd(cs.cmd).WithLiteral(r.sendLiteral), opts...) // alt screen: App.View
+	last := filepath.Join(filepath.Dir(dir), "last") // the channel ircc was on when it last quit
+	prev, _ := os.ReadFile(last)                     // none yet: start on the first channel
+	app := ui.New(m, r.send).WithUser(user).WithCmd(cs.cmd).WithLiteral(r.sendLiteral).WithResume(strings.TrimSpace(string(prev)))
+	p = tea.NewProgram(app, opts...) // alt screen: App.View
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -567,7 +570,13 @@ func runTUI(opts ...tea.ProgramOption) int {
 			}
 		}
 	}()
-	if _, err := p.Run(); err != nil {
+	final, err := p.Run()
+	if a, ok := final.(ui.App); ok && a.Channel() != "" {
+		if err := os.MkdirAll(filepath.Dir(last), 0o700); err == nil {
+			_ = os.WriteFile(last, []byte(a.Channel()+"\n"), 0o600) // best effort: losing it only means starting on the first channel
+		}
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "ircc:", err)
 		return 1
 	}
