@@ -188,3 +188,16 @@ func TestNotices(t *testing.T) {
 		}
 	}
 }
+
+func TestCtxPct(t *testing.T) {
+	for line, want := range map[string]float64{
+		`{"type":"attachment","attachment":{"type":"hook_additional_context","content":["BUDGET PreToolUse · ctx 91.5% · 5h 11.0%"]}}`: 91.5,
+		`{"type":"attachment","attachment":{"type":"hook_additional_context","content":["no budget here"]}}`:                           0, // NEG
+		`{"type":"attachment","attachment":{"type":"hook_success","content":["ctx 99%"]}}`:                                             0, // NEG: other kind
+	} {
+		ev, err := ParseEvent([]byte(line))
+		if err != nil || ev.CtxPct != want {
+			t.Errorf("%s: %v %v", line, ev.CtxPct, err)
+		}
+	}
+}

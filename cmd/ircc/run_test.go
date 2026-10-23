@@ -676,3 +676,29 @@ func TestNoticeToast(t *testing.T) {
 		t.Fatalf("toasts %q", got)
 	}
 }
+
+func TestCtxWarnToast(t *testing.T) {
+	f := newFix(t)
+	ctx := func(p string) string {
+		return `{"type":"attachment","attachment":{"type":"hook_additional_context","content":["BUDGET · ctx ` + p + `% · 5h 1%"]}}` + "\n"
+	}
+	appendLine(t, f.transcript, ctx("95")) // history: no toast
+	s := &sink{}
+	r := newRunner(f.claude, "/proc", "vic", s.emit)
+	defer r.close()
+	r.onSnapshot(snapshot(t, f))
+	r.poll()
+	for _, p := range []string{"92", "50", "91.2", "97"} { // still above: none; below then up: one
+		appendLine(t, f.transcript, ctx(p))
+		r.poll()
+	}
+	var got []string
+	for _, m := range s.take() {
+		if tm, ok := m.(ui.ToastMsg); ok {
+			got = append(got, tm.Text)
+		}
+	}
+	if strings.Join(got, "|") != "#alpha: context 91% used" {
+		t.Fatalf("toasts %q", got)
+	}
+}

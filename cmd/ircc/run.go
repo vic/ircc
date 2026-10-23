@@ -27,6 +27,8 @@ import (
 const (
 	ringCap   = 1000
 	pollEvery = 500 * time.Millisecond
+	// ctxWarn is the context use % that raises a toast (vic 2026-10-23: "usage reaches 90%").
+	ctxWarn = 90.0
 	// seedBytes is how much of a transcript's tail is read to learn the current
 	// permissionMode when a session is first seen.
 	seedBytes = 256 << 10
@@ -60,6 +62,7 @@ type tail struct {
 	busy   map[string]bool    // per subagent transcript: last Busy result; poller only
 	agents string             // last AgentsMsg sent, as a key; poller only
 	list   []model.Agent      // last agent list; guarded by runner.mu (invitable reads it)
+	ctx    float64            // last context use % seen (ctxWarn crossing); poller only
 }
 
 // runner holds the producers' state; emit hands messages to the UI. r.mu guards
@@ -331,6 +334,12 @@ func (r *runner) poll() {
 					t.mode, changed = ev.PermissionMode, true
 				}
 				r.mu.Unlock()
+			}
+			if ev.CtxPct > 0 {
+				if t.ctx < ctxWarn && ev.CtxPct >= ctxWarn && !old { // once per crossing, not every tool call
+					r.emit(ui.ToastMsg{Text: fmt.Sprintf("%s: context %.0f%% used", j.name, ev.CtxPct), Err: true})
+				}
+				t.ctx = ev.CtxPct
 			}
 			if ev.Notice != nil && !old { // hook errors, goal status: a toast, never replayed
 				r.emit(ui.ToastMsg{Text: j.name + ": " + ev.Notice.Text, Err: ev.Notice.Err})
