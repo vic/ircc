@@ -345,3 +345,23 @@ func TestInsertKeys(t *testing.T) {
 		t.Fatalf("O: %q", a.in.Value())
 	}
 }
+
+func TestSearchPickerJumps(t *testing.T) {
+	a := scrollApp(t) // 12 lines in #a, page 6
+	next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "ren", Text: "the needle " + strings.Repeat("long ", 60)}})
+	a = next.(App)
+	for i := 0; i < 8; i++ { // push the needle out of view
+		next, _ = a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "x", Text: "filler"}})
+		a = next.(App)
+	}
+	a, _ = press(t, a, "/")
+	a = typeText(t, a, "ndl")
+	checkFrame(t, a, a.w, a.h)
+	a, _ = press(t, a, "enter")
+	if a.pick || a.hit < 0 || !strings.Contains(a.lines(a.m.Current())[a.hit].Text, "needle") || a.off() == 0 {
+		t.Fatalf("pick %v hit %d off %d", a.pick, a.hit, a.off())
+	}
+	if !strings.Contains(ansi.Strip(a.screen()), "the needle") {
+		t.Fatal("hit line not on screen")
+	}
+}

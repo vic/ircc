@@ -11,6 +11,7 @@ import (
 // pickMatch is one channel the picker shows: its name and the matched rune positions.
 type pickMatch struct {
 	name  string
+	idx   int // position in the list given to pickList
 	at    []int
 	score int
 }
@@ -38,11 +39,12 @@ func fuzzy(q, s string) (pickMatch, bool) {
 	return m, j == len(qs)
 }
 
-// pickList is the channels matching q, best first; ties keep the given order (recency).
+// pickList is the names matching q, best first; ties keep the given order.
 func pickList(names []string, q string) []pickMatch {
 	var out []pickMatch
-	for _, n := range names {
+	for i, n := range names {
 		if m, ok := fuzzy(strings.TrimSpace(q), n); ok {
+			m.idx = i
 			out = append(out, m)
 		}
 	}
@@ -50,9 +52,9 @@ func pickList(names []string, q string) []pickMatch {
 	return out
 }
 
-// pickView is the channel picker box centered in exactly w x h cells.
-func pickView(w, h int, q string, ms []pickMatch, sel int) string {
-	rows := []string{title.Render("channel") + " " + prompt.Render(">") + " " + q, ""}
+// pickView is the picker box (channels or lines, titled what) centered in exactly w x h cells.
+func pickView(w, h int, what, q string, ms []pickMatch, sel int) string {
+	rows := []string{title.Render(what) + " " + prompt.Render(">") + " " + q, ""}
 	for i, m := range ms {
 		if i >= max(h-6, 1) {
 			break
@@ -62,7 +64,9 @@ func pickView(w, h int, q string, ms []pickMatch, sel int) string {
 			mark, st = "◆", cell.Bold(true)
 		}
 		var b strings.Builder
-		for k, r := range []rune(m.name) {
+		rs := []rune(m.name)
+		rs = rs[:min(len(rs), max(min(max(w/2, 40), w)-6, 1))] // one row in the box
+		for k, r := range rs {
 			if slices.Contains(m.at, k) {
 				b.WriteString(shortcut.Bold(true).Render(string(r)))
 			} else {
@@ -72,7 +76,7 @@ func pickView(w, h int, q string, ms []pickMatch, sel int) string {
 		rows = append(rows, title.Render(mark)+" "+b.String())
 	}
 	if len(ms) == 0 {
-		rows = append(rows, dimmed.Render("no channel matches"))
+		rows = append(rows, dimmed.Render("no match"))
 	}
 	rows = append(rows, "", keyHint("enter", "go", "up down", "select", "esc", "close"))
 	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("8")).

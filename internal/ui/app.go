@@ -56,37 +56,38 @@ type CmdMsg struct{ Cmd model.Cmd }
 const (
 	defaultW, defaultH = 80, 24
 	promptCmd          = ':'
-	promptSearch       = '/'
-	wheelRows          = 3 // rows one wheel notch scrolls
+
+	wheelRows = 3 // rows one wheel notch scrolls
 )
 
 // App is the bubbletea model: keys.go decides, App applies. No sockets here;
 // sending goes through the injected send func.
 type App struct {
-	m        model.Model
-	mode     EditMode
-	pending  string
-	in       textinput.Model
-	send     func(ch, text string) error
-	cmdf     func(ch string, c model.Cmd) tea.Cmd // runs a parsed command; ch is the focused channel
-	literal  func(ch, text string) error          // the : prompt: text as is to the session socket
-	user     string                               // nick of the local echo line
-	info     map[int]model.SessionInfo
-	now      func() time.Time
-	w, h     int
-	prompt   rune // 0, promptCmd or promptSearch: the input line holds a prompt
-	query    string
-	hit      int             // index in the current channel of the last search hit, -1 none
-	offs     map[string]int  // per channel: lines scrolled back from the newest
-	help     bool            // the ? popup is shown; the next key closes it
-	prev     string          // channel focused before the current one; tab returns to it
-	stamps   bool            // s: show "15:04 " before each line
-	pick     bool            // ctrl+t: the channel picker is open
-	pq       textinput.Model // picker query (own input: a typed message survives)
-	psel     int             // picker selection, an index in pickList
-	comp     completion      // tab completion state of the INSERT line
-	tools    bool            // t: show tool lines
-	mentions bool            // m: show only direct lines (see shows)
+	m         model.Model
+	mode      EditMode
+	pending   string
+	in        textinput.Model
+	send      func(ch, text string) error
+	cmdf      func(ch string, c model.Cmd) tea.Cmd // runs a parsed command; ch is the focused channel
+	literal   func(ch, text string) error          // the : prompt: text as is to the session socket
+	user      string                               // nick of the local echo line
+	info      map[int]model.SessionInfo
+	now       func() time.Time
+	w, h      int
+	prompt    rune // 0 or promptCmd (:): the input line holds a prompt
+	query     string
+	hit       int             // index in the current channel of the last search hit, -1 none
+	offs      map[string]int  // per channel: lines scrolled back from the newest
+	help      bool            // the ? popup is shown; the next key closes it
+	prev      string          // channel focused before the current one; tab returns to it
+	stamps    bool            // s: show "15:04 " before each line
+	pick      bool            // ctrl+t or /: the picker is open
+	pickLines bool            // the picker searches lines (/), not channels (ctrl+t)
+	pq        textinput.Model // picker query (own input: a typed message survives)
+	psel      int             // picker selection, an index in pickList
+	comp      completion      // tab completion state of the INSERT line
+	tools     bool            // t: show tool lines
+	mentions  bool            // m: show only direct lines (see shows)
 }
 
 // New returns an App over m that sends channel text through send.
@@ -192,7 +193,7 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case act.Kind == Scroll:
 			return a.scroll(act), nil
 		case act.Kind == PickChan:
-			return a.openPick(), nil
+			return a.openPick(false), nil
 		case act.Kind == NextChan || act.Kind == PrevChan:
 			return a.switchChan(act), nil
 		}
@@ -207,7 +208,7 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if a.pending == "" {
 		switch k {
 		case "/":
-			return a.openPrompt(promptSearch), nil
+			return a.openPick(true), nil
 		case "n", "N":
 			return a.searchStep(k == "N"), nil
 		}
@@ -238,7 +239,7 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case ToggleStamps:
 		a.stamps, a.offs = !a.stamps, nil // row counts changed
 	case PickChan:
-		return a.openPick(), nil
+		return a.openPick(false), nil
 	case LastChan:
 		a = a.focusName(a.prev)
 	case NextChan, PrevChan, GotoChan:
@@ -267,14 +268,9 @@ func (a App) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		a, _ = a.closePrompt()
 	case "enter":
-		p := a.prompt
 		var v string
 		a, v = a.closePrompt()
-		if p == promptCmd {
-			return a.sendLiteral(v)
-		}
-		a.query = v // search continues from the last hit, kept when nothing matches
-		return a.searchStep(false), nil
+		return a.sendLiteral(v) // the only prompt is :
 	default:
 		var cmd tea.Cmd
 		a.in, cmd = a.in.Update(msg)
@@ -368,8 +364,6 @@ func (a App) inputLine() (label, input, hint string) {
 	switch {
 	case a.prompt == promptCmd:
 		return "NORMAL", ":" + a.in.Value(), keyHint("enter", "send as is", "esc", "cancel")
-	case a.prompt != 0:
-		return "NORMAL", string(a.prompt) + a.in.Value(), keyHint("enter", "find", "n N", "next prev", "esc", "cancel")
 	case a.mode == Insert:
 		return "INSERT", a.in.Value(), keyHint("enter", "send", "tab", "complete", "↑↓", "channel", "esc", "normal")
 	}
@@ -390,7 +384,11 @@ func (a App) screen() string {
 		return helpView(a.w, a.h)
 	}
 	if a.pick {
-		return pickView(a.w, a.h, a.pq.Value(), pickList(a.chanNames(), a.pq.Value()), a.psel)
+		what := "channel"
+		if a.pickLines {
+			what = "search"
+		}
+		return pickView(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel)
 	}
 	label, input, hint := a.inputLine()
 	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, chanNicks(a.m.Current(), a.user), a.lines(a.m.Current()), a.wrap(), a.suggest(), hint)
@@ -558,21 +556,38 @@ func (a App) chanNames() []string {
 	return out
 }
 
-func (a App) openPick() App {
-	a.pick, a.psel, a.pq = true, 0, textinput.New()
+// openPick opens the fuzzy picker: over the channels, or (lines) over the current
+// channel's shown lines, where enter jumps to the line (vic 2026-10-22).
+func (a App) openPick(lines bool) App {
+	a.pick, a.pickLines, a.psel, a.pq = true, lines, 0, textinput.New()
 	a.pq.Prompt = ""
 	a.pq.Focus()
 	return a
 }
 
-// pickKey runs one key in the open picker: enter goes to the selected channel.
+// pickSource is what the picker searches: channel names, or "<nick> text" per shown line.
+func (a App) pickSource() []string {
+	if !a.pickLines {
+		return a.chanNames()
+	}
+	var out []string
+	for _, l := range a.lines(a.m.Current()) {
+		out = append(out, "<"+l.Nick+"> "+l.Text)
+	}
+	return out
+}
+
+// pickKey runs one key in the open picker: enter goes to the selected channel or line.
 func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	ms := pickList(a.chanNames(), a.pq.Value())
+	ms := pickList(a.pickSource(), a.pq.Value())
 	switch msg.String() {
 	case "esc":
 		a.pick = false
 	case "enter":
-		if a.psel < len(ms) {
+		if a.psel < len(ms) && a.pickLines {
+			a.hit, a.query = ms[a.psel].idx, a.pq.Value() // n / N go on from here
+			a = a.showHit()
+		} else if a.psel < len(ms) {
 			a = a.focusName(ms[a.psel].name)
 		}
 		a.pick = false
@@ -587,6 +602,16 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	return a, nil
+}
+
+// showHit scrolls so the first row of the hit line is the top row of the lines pane.
+func (a App) showHit() App {
+	ls := a.lines(a.m.Current())
+	if a.hit < 0 || a.hit >= len(ls) {
+		return a
+	}
+	after := rowCount(ls[a.hit:], textWidth(a.w, a.h), a.wrap()) // rows from the hit line to the newest
+	return a.setOff(a.m.Current().Name, max(after-a.page(), 0))
 }
 
 // nickPool is every nick tab can complete: session main agents, then members of
