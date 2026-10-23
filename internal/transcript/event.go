@@ -19,6 +19,7 @@ type Event struct {
 	HeldPID        int     // "[verified pid N]" (m14); Held implies HeldPID > 0
 	HeldPreview    string  // text inside «...» (D:105); match the fanned line by prefix
 	Blocks         []Block // assistant/user message content (measured shapes)
+	Done           bool    // assistant turn ended (stop_reason end_turn): the agent is idle
 }
 
 type rawEvent struct {
@@ -30,7 +31,8 @@ type rawEvent struct {
 	IsSidechain    bool   `json:"isSidechain"`
 	AgentID        string `json:"agentId"`
 	Message        *struct {
-		Content json.RawMessage `json:"content"`
+		Content    json.RawMessage `json:"content"`
+		StopReason string          `json:"stop_reason"`
 	} `json:"message"`
 }
 
@@ -49,6 +51,9 @@ func ParseEvent(line []byte) (Event, error) {
 		return Event{}, fmt.Errorf("transcript event: %w", err)
 	}
 	e := Event{Type: r.Type, PermissionMode: r.PermissionMode, Sidechain: r.IsSidechain, AgentID: r.AgentID}
+	if r.Type == "assistant" && r.Message != nil {
+		e.Done = r.Message.StopReason == "end_turn"
+	}
 	if r.Message != nil && len(r.Message.Content) > 0 && (r.Type == "assistant" || r.Type == "user") {
 		bs, err := parseBlocks(r.Type, r.Message.Content)
 		if err != nil {

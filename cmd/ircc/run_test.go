@@ -439,6 +439,7 @@ func TestBlockLines(t *testing.T) {
 		{"user system-reminder dim", transcript.Event{Type: "user", Blocks: []transcript.Block{{Kind: transcript.TextBlock, Text: "<system-reminder>x</system-reminder>"}}}, []row{{"vic", "<system-reminder>x</system-reminder>", true}}},
 		{"own wrapper behind header hidden", transcript.Event{Type: "user", Blocks: []transcript.Block{{Kind: transcript.TextBlock, Text: "Another Claude session sent a message:\n" + wrapperPrefix + " from=\"uds:/run/x/ircc-vic.sock\" from-name=\"vic\" from-mode=\"prompting\">\nhi\n</cross-session-message>\n\nThis came from another Claude session."}}}, nil},
 		{"peer wrapper behind header shows body", transcript.Event{Type: "user", Blocks: []transcript.Block{{Kind: transcript.TextBlock, Text: "Another Claude session sent a message:\n" + wrapperPrefix + " from=\"uds:/run/x/cc-socks/9.sock\" from-name=\"ren\" from-mode=\"prompting\">\nyo\n</cross-session-message>\n\nThis came from another Claude session."}}}, []row{{"ren", "yo", true}}},
+		{"teammate blocks become lines, idle JSON dropped", transcript.Event{Type: "user", Blocks: []transcript.Block{{Kind: transcript.TextBlock, Text: "Another Claude session sent a message:\n" + teammatePrefix + "teammate_id=\"driver-1\" color=\"purple\" summary=\"s\">\nREADY driver-1\n</teammate-message>\n\n" + teammatePrefix + "teammate_id=\"driver-1\" color=\"purple\">\n{\"type\":\"idle_notification\",\"from\":\"driver-1\"}\n</teammate-message>\n\nThis came from another Claude session."}}}, []row{{"driver-1", "READY driver-1", false}}},
 		{"send to ircc hidden", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "SendMessage", ToolTo: "uds:/run/x/ircc-vic.sock"}}}, nil},
 		{"send to other shown", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "SendMessage", ToolTo: "uds:/run/x/cc-socks/9.sock"}}}, []row{{"alpha", "* SendMessage", true}}},
 		{"send by name shown", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "SendMessage", ToolTo: "ircc-vic"}}}, []row{{"alpha", "* SendMessage", true}}},
@@ -559,5 +560,46 @@ func TestRepliesToOurLinesAreChat(t *testing.T) {
 	}
 	if strings.Join(got, "|") != "all green=true|ok doing it=false" { // NEG: a prompt typed in Claude ends the reply
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestAgentsMsg(t *testing.T) {
+	f := newFix(t)
+	sub := filepath.Join(filepath.Dir(f.transcript), "sid1", "subagents")
+	if err := os.MkdirAll(sub, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "agent-adriver-1-ab12.meta.json"), []byte(`{"agentType":"driver-1"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	agentLog := filepath.Join(sub, "agent-adriver-1-ab12.jsonl")
+	if err := os.WriteFile(agentLog, []byte(`{"type":"assistant","message":{"stop_reason":"tool_use","content":[]}}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := &sink{}
+	r := newRunner(f.claude, "/proc", "vic", s.emit)
+	defer r.close()
+	r.onSnapshot(snapshot(t, f))
+	agents := func() []string {
+		var out []string
+		for _, m := range s.take() {
+			if am, ok := m.(ui.AgentsMsg); ok {
+				out = append(out, fmt.Sprint(am.Ch, am.Agents))
+			}
+		}
+		return out
+	}
+	r.poll()
+	if got := agents(); len(got) != 1 || got[0] != "#alpha[{driver-1 true}]" {
+		t.Fatalf("busy: %q", got)
+	}
+	appendLine(t, agentLog, `{"type":"assistant","message":{"stop_reason":"end_turn","content":[]}}`+"\n")
+	r.poll()
+	if got := agents(); len(got) != 1 || got[0] != "#alpha[{driver-1 false}]" {
+		t.Fatalf("idle: %q", got)
+	}
+	r.poll()
+	if got := agents(); len(got) != 0 { // NEG: unchanged list is not re-sent
+		t.Fatalf("resent: %q", got)
 	}
 }

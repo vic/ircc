@@ -421,3 +421,20 @@ func TestBusyMarks(t *testing.T) {
 		t.Fatalf("room %q", got)
 	}
 }
+
+func TestAgentsInPane(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	next, _ := a.Update(AgentsMsg{Ch: "#a", Agents: []model.Agent{{Nick: "driver-1", Busy: true}, {Nick: "scribe-1"}}})
+	a = next.(App)
+	if got := strings.Join(a.paneNicks(), ","); got != "me,a,…driver-1,scribe-1" {
+		t.Fatalf("pane %q", got)
+	}
+	next, _ = a.Update(AgentsMsg{Ch: "&nope", Agents: []model.Agent{{Nick: "x"}}}) // NEG: unknown channel ignored
+	a, _ = press(t, next.(App), "i")
+	a = typeText(t, a, "ask @dri")
+	a, _ = press(t, a, "tab")
+	if a.in.Value() != "ask @driver-1" {
+		t.Fatalf("complete %q", a.in.Value())
+	}
+}

@@ -61,6 +61,12 @@ func TestSubagents(t *testing.T) {
 			if len(errs) != tc.wantErr {
 				t.Fatalf("errs %v", errs)
 			}
+			for i := range got {
+				if want := filepath.Join(proj, sid, "subagents", "agent-"+got[i].ID+".jsonl"); got[i].Path != want {
+					t.Fatalf("path %s want %s", got[i].Path, want)
+				}
+				got[i].Path = ""
+			}
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("got %+v want %+v", got, tc.want)
 			}
@@ -83,5 +89,27 @@ func TestSubagentsGlobCharsInProjectDir(t *testing.T) {
 	got, errs := Subagents(proj, sid)
 	if len(errs) != 0 || len(got) != 1 {
 		t.Fatalf("%v %v", got, errs)
+	}
+}
+
+func TestBusy(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	idle := write("idle.jsonl", `{"type":"user","message":{"content":"go"}}`+"\n"+`{"type":"assistant","message":{"stop_reason":"end_turn","content":[{"type":"text","text":"done"}]}}`+"\n"+`{"type":"attachment"}`+"\n")
+	tool := write("tool.jsonl", `{"type":"assistant","message":{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"Bash","input":{}}]}}`+"\n")
+	asked := write("asked.jsonl", `{"type":"assistant","message":{"stop_reason":"end_turn","content":[]}}`+"\n"+`{"type":"user","message":{"content":"next task"}}`+"\n")
+	for _, c := range []struct {
+		p           string
+		busy, known bool
+	}{{idle, false, true}, {tool, true, true}, {asked, true, true}, {filepath.Join(dir, "none"), false, false}} {
+		if b, k := Busy(c.p); b != c.busy || k != c.known {
+			t.Errorf("%s: busy %v known %v", filepath.Base(c.p), b, k)
+		}
 	}
 }

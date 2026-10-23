@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -49,10 +51,14 @@ func claudeDir() (string, error) {
 }
 
 type tail struct {
-	t     *transcript.Tailer // used by the poller only
-	mode  string             // last permissionMode seen, "" until one is; guarded by runner.mu
-	old   bool               // the first batch is history: shown, not acted on, not unread; poller only
-	reply bool               // the session is answering a line we sent: its text is a direct reply; poller only
+	t      *transcript.Tailer // used by the poller only
+	mode   string             // last permissionMode seen, "" until one is; guarded by runner.mu
+	old    bool               // the first batch is history: shown, not acted on, not unread; poller only
+	reply  bool               // the session is answering a line we sent: its text is a direct reply; poller only
+	path   string             // the session transcript; its dir holds <sessionId>/subagents
+	sizes  map[string]int64   // per subagent transcript: size when busy was last read; poller only
+	busy   map[string]bool    // per subagent transcript: last Busy result; poller only
+	agents string             // last AgentsMsg sent, as a key; poller only
 }
 
 // runner holds the producers' state; emit hands messages to the UI. r.mu guards
@@ -271,7 +277,7 @@ func (r *runner) open(e registry.Entry) (*tail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &tail{t: tl, mode: mode, old: start < fi.Size()}, nil
+	return &tail{t: tl, mode: mode, old: start < fi.Size(), path: p, sizes: map[string]int64{}, busy: map[string]bool{}}, nil
 }
 
 // poll reads new transcript lines of every live session. A line that does not
@@ -293,6 +299,9 @@ func (r *runner) poll() {
 		t := r.attach(j.pid, j.e)
 		if t == nil {
 			continue
+		}
+		if m, ok := t.agentsMsg(j.name, j.e.SessionID); ok {
+			r.emit(m)
 		}
 		lines, err := t.t.Lines()
 		old := t.old
@@ -581,6 +590,8 @@ func blockLines(ev transcript.Event, session, user string) []model.Line {
 	var out []model.Line
 	for _, b := range ev.Blocks {
 		switch {
+		case b.Kind == transcript.TextBlock && ev.Type == "user" && strings.Contains(b.Text, teammatePrefix):
+			out = append(out, teammateLines(b.Text, now)...)
 		case b.Kind == transcript.TextBlock && ev.Type == "user" && strings.Contains(b.Text, wrapperPrefix):
 			if l, ok := wrappedLine(b.Text, user, now); ok {
 				out = append(out, l)
@@ -657,4 +668,54 @@ func prompt(ev transcript.Event) promptKind {
 		return promptOther
 	}
 	return promptNone
+}
+
+// agentsMsg lists the subagents of the session behind channel ch with their busy
+// state; ok only when the list changed since the last call. A subagent transcript
+// is re-read only when its size changed. Busy ones come first.
+func (t *tail) agentsMsg(ch, sid string) (ui.AgentsMsg, bool) {
+	as, _ := transcript.Subagents(filepath.Dir(t.path), sid) // a corrupt meta drops that agent only
+	out := make([]model.Agent, 0, len(as))
+	for _, a := range as {
+		if fi, err := os.Stat(a.Path); err == nil && fi.Size() != t.sizes[a.Path] {
+			t.sizes[a.Path] = fi.Size()
+			t.busy[a.Path], _ = transcript.Busy(a.Path) // unknown counts as idle
+		}
+		out = append(out, model.Agent{Nick: a.Nick, Busy: t.busy[a.Path]})
+	}
+	slices.SortStableFunc(out, func(x, y model.Agent) int {
+		switch {
+		case x.Busy == y.Busy:
+			return 0
+		case x.Busy:
+			return -1
+		}
+		return 1
+	})
+	key := fmt.Sprint(out)
+	if key == t.agents {
+		return ui.AgentsMsg{}, false
+	}
+	t.agents = key
+	return ui.AgentsMsg{Ch: ch, Agents: out}, true
+}
+
+// teammatePrefix opens a teammate message block; split so display tooling cannot mangle "<".
+const teammatePrefix = "<" + "teammate-message "
+
+// teammateRE is one teammate message block as Claude records it (measured 2026-10-22).
+var teammateRE = regexp.MustCompile(`(?s)<teammate-message teammate_id="([^"]+)"[^>]*>\n(.*?)\n</teammate-message>`)
+
+// teammateLines turns each teammate message block in text into a line from that
+// teammate. idle_notification bodies (JSON) are dropped: busy marks show idle.
+func teammateLines(text string, now time.Time) []model.Line {
+	var out []model.Line
+	for _, m := range teammateRE.FindAllStringSubmatch(text, -1) {
+		body := strings.TrimSpace(m[2])
+		if strings.HasPrefix(body, "{") && strings.Contains(body, `"idle_notification"`) {
+			continue
+		}
+		out = append(out, model.Line{At: now, Nick: m[1], Text: body, Kind: model.Transcript})
+	}
+	return out
 }

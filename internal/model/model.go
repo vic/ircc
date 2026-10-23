@@ -50,6 +50,7 @@ type Channel struct {
 	Unread  int
 	Lines   Ring[Line]
 	Members []Member // rooms only; set by WithRoomMembers
+	Agents  []Agent  // # channels only: the session's subagents; set by WithAgents
 }
 
 // Model is the channel list. Updates return a new Model; AddLine gives the
@@ -74,6 +75,7 @@ func (m Model) Channels() []Channel {
 	out := append([]Channel(nil), m.chans...)
 	for i := range out {
 		out[i].Members = slices.Clone(out[i].Members)
+		out[i].Agents = slices.Clone(out[i].Agents)
 	}
 	return out
 }
@@ -141,4 +143,28 @@ func (m Model) WithSessions(ss []Session) Model {
 		}
 	}
 	return n
+}
+
+// Agent is a subagent or teammate of a session, a nick in its # channel (D:33).
+type Agent struct {
+	Nick string
+	Busy bool
+}
+
+// WithAgents returns a Model whose session channel ch lists agents (copied).
+func (m Model) WithAgents(ch string, agents []Agent) (Model, error) {
+	for i, c := range m.chans {
+		if c.Name != ch {
+			continue
+		}
+		if c.Kind != SessionChan {
+			return m, fmt.Errorf("model: %s is a room: rooms have members, not agents", ch)
+		}
+		c.Agents = slices.Clone(agents)
+		for j := range c.Agents {
+			c.Agents[j].Nick = clean(c.Agents[j].Nick)
+		}
+		return m.withChan(i, c), nil
+	}
+	return m, fmt.Errorf("%w: %s", ErrUnknownChannel, ch)
 }

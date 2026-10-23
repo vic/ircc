@@ -319,11 +319,16 @@ func memberNicks(c model.Channel) []string {
 	return out
 }
 
-// chanNicks is the nick pane of c (D:217): user, then the session's main agent
+// chanNicks is the nick pane of c (D:217): user, then the session's main agent and
+// its subagents
 // (D:229 nick = channel name without "#") or the room's members.
 func chanNicks(c model.Channel, user string) []string {
 	if c.Kind == model.SessionChan {
-		return []string{user, strings.TrimPrefix(c.Name, "#")}
+		out := []string{user, strings.TrimPrefix(c.Name, "#")}
+		for _, ag := range c.Agents {
+			out = append(out, ag.Nick)
+		}
+		return out
 	}
 	return append([]string{user}, memberNicks(c)...)
 }

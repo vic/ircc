@@ -34,6 +34,12 @@ type LiteralResultMsg struct{ Err error }
 // FocusMsg makes channel Ch current (after /join).
 type FocusMsg string
 
+// AgentsMsg sets the subagents of session channel Ch (nicks and busy state).
+type AgentsMsg struct {
+	Ch     string
+	Agents []model.Agent
+}
+
 // MembersMsg sets the member nicks of room Ch.
 type MembersMsg struct {
 	Ch    string
@@ -132,6 +138,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a = a.sent(msg)
 	case FocusMsg:
 		a = a.focusName(string(msg))
+	case AgentsMsg:
+		if m, err := a.m.WithAgents(msg.Ch, msg.Agents); err == nil {
+			a.m = m
+		}
 	case MembersMsg:
 		ms := make([]model.Member, len(msg.Nicks))
 		for i, n := range msg.Nicks {
@@ -623,6 +633,9 @@ func (a App) nickPool() []string {
 			out = append(out, strings.TrimPrefix(c.Name, "#"))
 		}
 	}
+	for _, ag := range a.m.Current().Agents {
+		out = append(out, ag.Nick)
+	}
 	for _, m := range a.m.Current().Members {
 		out = append(out, m.Nick)
 	}
@@ -686,9 +699,19 @@ func (a App) paneNicks() []string {
 		out[0] = busyMark + out[0]
 	}
 	for i := 1; i < len(out); i++ {
-		if (cur.Kind == model.SessionChan && busy(cur.PID)) || (cur.Kind == model.RoomChan && busy(a.pidOf(cur.Members[i-1].Nick))) {
-			out[i] = busyMark + out[i]
+		switch {
+		case cur.Kind == model.RoomChan:
+			if !busy(a.pidOf(cur.Members[i-1].Nick)) {
+				continue
+			}
+		case i == 1: // the main agent
+			if !busy(cur.PID) {
+				continue
+			}
+		case !cur.Agents[i-2].Busy:
+			continue
 		}
+		out[i] = busyMark + out[i]
 	}
 	return out
 }
