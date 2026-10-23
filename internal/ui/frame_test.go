@@ -573,7 +573,7 @@ func TestSpeakerFilter(t *testing.T) {
 		a = next.(App)
 	}
 	a, _ = press(t, a, "S")
-	if got := strings.Join(a.pickSource(), ","); got != "(all),lib2,vic,lib1" { // newest first
+	if got := strings.Join(a.pickSource(), ","); got != "(all),lib2,vic,lib1,me,a" { // speakers newest first, then the rest of the pane
 		t.Fatalf("speakers %q", got)
 	}
 	a = typeText(t, a, "lib1")

@@ -639,6 +639,11 @@ func (a App) pickSource() []string {
 				out = append(out, ls[i].Nick)
 			}
 		}
+		for _, n := range chanNicks(cur, a.user) { // then everyone in the pane who has not spoken yet
+			if !slices.Contains(out, n) {
+				out = append(out, n)
+			}
+		}
 	}
 	return out
 }
