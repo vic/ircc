@@ -365,7 +365,7 @@ func TestAppSearchHitDisplayed(t *testing.T) {
 	hasRev := func() bool {
 		for _, r := range strings.Split(a.screen(), "\n") {
 			if strings.Contains(r, "needle one") {
-				return strings.Contains(r, "\x1b[48;5;236m")
+				return strings.Contains(r, hitNick("n"))
 			}
 		}
 		t.Fatal("line not on screen")

@@ -34,7 +34,7 @@ var (
 	unread      = fg("3").Bold(true)
 	roomName    = fg("13")
 	alert       = fg("9").Bold(true)
-	current     = cell.Background(lipgloss.Color("236"))                                           // selected line and search hit: dark, not white
+	current     = cell.Background(lipgloss.Color("236"))                                           // selected pane row
 	cursor      = cell.Background(lipgloss.Color("13"))                                            // the input cursor: the focused pane border color
 	selected    = cell.Bold(true).Background(lipgloss.Color("8")).Foreground(lipgloss.Color("15")) // current channel
 	helpHead    = fg("2").Bold(true)
@@ -113,9 +113,6 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 	if i >= len(rows) {
 		return fit(cell, "", n)
 	}
-	if of[i] == hit {
-		return fit(current, lead+rows[i], n)
-	}
 	l, r := shown[of[i]], rows[i]
 	plain := l.Dim || l.Kind == model.Tool
 	st := cell
@@ -135,6 +132,10 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 	nk := "<" + l.Nick + ">"
 	if after, ok := strings.CutPrefix(r, nk); ok {
 
+		if of[i] == hit { // the selected line: nick bold italic, its <> in the cursor color
+			br := fg("13").Bold(true).Italic(true)
+			return fit(cell, lead+br.Render("<")+nickStyle(l.Nick).Bold(true).Italic(true).Render(l.Nick)+br.Render(">")+text(after), n)
+		}
 		return fit(cell, lead+nickStyle(l.Nick).Render(nk)+text(after), n)
 	}
 	return fit(cell, lead+text(r), n)

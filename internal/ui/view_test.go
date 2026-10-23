@@ -130,11 +130,11 @@ func TestViewHitReversed(t *testing.T) {
 		t.Fatal("row not found")
 		return ""
 	}
-	if !strings.Contains(row(1), "\x1b[48;5;236m") {
+	if !strings.Contains(row(1), hitNick("vix-05")) {
 		t.Fatal("hit line is not highlighted")
 	}
 	for _, hit := range []int{-1, 0, 99} { // NEG: no hit, other line, out of range
-		if strings.Contains(row(hit), "\x1b[48;5;236m") {
+		if strings.Contains(row(hit), hitNick("vix-05")) {
 			t.Fatalf("hit %d reversed line 1", hit)
 		}
 	}
@@ -216,15 +216,15 @@ func TestViewWrapCountsRowsForScrollAndHit(t *testing.T) {
 	if up := View(m, ml, "", 80, 7, 1, -1); strings.Contains(up, "last") {
 		t.Fatalf("off=1 still shows last:\n%s", up)
 	}
-	// hit reverses every row of the wrapped line
+	// hit marks the <nick> on the first row of the wrapped line (h=9 keeps that row on screen)
 	n := 0
-	for _, r := range strings.Split(View(m, ml, "", 80, 7, 1, 1), "\n") {
-		if strings.Contains(r, "word") && strings.Contains(r, "\x1b[48;5;236m") {
+	for _, r := range strings.Split(View(m, ml, "", 80, 9, 1, 1), "\n") {
+		if strings.Contains(r, "word") && strings.Contains(r, hitNick("bob")) {
 			n++
 		}
 	}
-	if n < 2 {
-		t.Fatalf("hit highlighted %d wrapped rows, want all (>=2)", n)
+	if n != 1 {
+		t.Fatalf("hit marked %d rows, want the nick row only (1)", n)
 	}
 }
 
@@ -254,4 +254,10 @@ func TestViewWrapsOnlyVisibleLines(t *testing.T) {
 			t.Errorf("off %d: bottom row is not %s: %q", c.off, newest, rows)
 		}
 	}
+}
+
+// hitNick is the <nick> of a selected line: the nick bold italic in its color, the brackets in the cursor color.
+func hitNick(nick string) string {
+	br := fg("13").Bold(true).Italic(true)
+	return br.Render("<") + nickStyle(nick).Bold(true).Italic(true).Render(nick) + br.Render(">")
 }
