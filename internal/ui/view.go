@@ -142,6 +142,9 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 	if s := stampRE.FindString(r); s != "" {
 		lead, r = lead+dimmed.Render(s), r[len(s):]
 	}
+	if of[i] == hit && strings.HasPrefix(lead, " ") { // the current message: a gutter bar in the lead column
+		lead = gutterBar + lead[1:]
+	}
 	nk := "<" + l.Nick + ">"
 	if after, ok := strings.CutPrefix(r, nk); ok {
 
@@ -625,3 +628,6 @@ func markHits(s string, st lipgloss.Style, code bool, q string) string {
 	b.WriteString(markdown(s[last:], st, code))
 	return b.String()
 }
+
+// gutterBar marks the current message in the lines pane's lead column.
+var gutterBar = lipgloss.NewStyle().Foreground(lipgloss.Color("13")).Render("▌") // the cursor color
