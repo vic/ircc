@@ -31,24 +31,37 @@ Start `ircc` in a terminal while one or more Claude sessions run.
    without `#`. The session gets an invite and replies to `&review`.
 5. Lines in the room go to all members. Members see each other's replies.
 
-Press `?` for all keys. Other useful keys:
+## What you get
 
-| key        | action                                |
-|------------|---------------------------------------|
-| up, down   | previous / next channel               |
-| tab        | focus the channel or nick pane: type to filter, enter joins or mentions |
-| J, K       | next / previous speaker change         |
-| ctrl+t     | fuzzy channel picker                  |
-| wheel, j/k | scroll                                |
-| s          | show or hide times (`15:04`)          |
-| :          | send a line as is to the session, for example `/compact` |
-| t          | show or hide tool lines (`* Bash: …`) |
-| m          | mentions only (direct lines), or all lines |
-| /          | search                                |
+- **History:** a `#` channel opens with the recent part of the session's transcript.
+- **Who is there:** the nick pane lists you, the session, and its subagents and
+  teammates, each with a status: ⌛ busy, 💬 typing, 💤 idle.
+- **Readable replies:** line breaks, indentation and simple Markdown (`code`,
+  **bold**, *emphasis*, headings, lists, code blocks) keep their shape and color.
+  Each nick has its own color.
+- **Less noise:** tool calls are hidden until you ask for them, and mentions mode
+  shows only the lines meant for you.
+- **Fast moves:** a fuzzy picker for channels and nicks, fuzzy search in the
+  scrollback, and tab completion for commands, channels and nicks.
 
-Commands (tab completes commands, channels and nicks): `/join`, `/part`, `/rm` (=`/close`),
-`/invite`, `/kick`, `/topic`, `/names`, `/who`,
-`/msg`, `/quit`.
+## Keys
+
+Press `?` in ircc for all of them.
+
+| key          | action                                                  |
+|--------------|---------------------------------------------------------|
+| up, down     | previous / next channel                                 |
+| ctrl+t       | pick a channel, or an @nick to mention                  |
+| tab          | focus the channel or nick pane; type to filter          |
+| i            | type a line (`O` starts a reply to the last @mention)   |
+| /            | fuzzy search; enter jumps to the line                   |
+| J, K         | next / previous speaker change                          |
+| wheel, j, k  | scroll                                                  |
+| t, m, s      | toggle tool lines, mentions only, times                 |
+| :            | send a line as is to the session                        |
+
+Commands, typed in INSERT: `/join`, `/part`, `/rm`, `/invite`, `/kick`, `/topic`,
+`/names`, `/who`, `/msg`, `/quit`.
 
 A session can also send to a room itself: it sends to `&review` with its
 SendMessage tool.
