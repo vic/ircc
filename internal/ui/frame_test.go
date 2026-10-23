@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -690,4 +691,25 @@ func TestSuggestFloats(t *testing.T) {
 		t.Fatalf("no floating box above the prompt:\n%s", s)
 	}
 	checkFrame(t, a, a.w, a.h)
+}
+
+func TestChannelPanePreviews(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil) // #a #b #c
+	next, _ := a.Update(LineMsg{Ch: "#b", L: model.Line{Nick: "b", Text: "only in b"}})
+	a, _ = press(t, next.(App), "ctrl+n", "ctrl+n") // now on #c (b moved first by its line)
+	start := cur(a)
+	a, _ = press(t, a, "tab")
+	if a.fsel != slices.Index(a.chanNames(), start) || cur(a) != start { // opens on the current channel
+		t.Fatalf("open: sel %d cur %s", a.fsel, cur(a))
+	}
+	a = typeText(t, a, "b")
+	v := ansi.Strip(a.screen())
+	if cur(a) != "#b" || !strings.Contains(v, "only in b") || !strings.Contains(v, "💤b") { // chat and nicks show #b
+		t.Fatalf("preview: cur %s\n%s", cur(a), v)
+	}
+	a, _ = press(t, a, "esc")
+	if cur(a) != "#b" || a.focus != focusChat {
+		t.Fatalf("esc: %s", cur(a))
+	}
 }

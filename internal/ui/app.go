@@ -298,7 +298,7 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case NextTurn, PrevTurn:
 		a = a.turn(act.Kind == NextTurn)
 	case FocusPane:
-		a.focus, a.fq, a.fsel = focusChans, "", 0
+		a.focus, a.fq, a.fsel = focusChans, "", max(slices.Index(a.chanNames(), a.m.Current().Name), 0) // start on the current channel
 	case NextChan, PrevChan, GotoChan:
 		a = a.switchChan(act)
 	}
@@ -916,10 +916,23 @@ func (a App) paneItems(f paneFocus) (show, names []string) {
 	return fs, fn
 }
 
-// paneKey runs one NORMAL key while a side pane has focus: type to filter, up/down
+// paneKey is paneStep plus the channel preview: moving over the channel pane shows
+// that channel in the chat and nick panes (vic 2026-10-23).
+func (a App) paneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	next, cmd := a.paneStep(msg)
+	b := next.(App)
+	if k := msg.String(); b.focus == focusChans && k != "esc" && k != "enter" && k != "tab" {
+		if _, names := b.paneItems(focusChans); b.fsel < len(names) {
+			b = b.focusName(names[b.fsel])
+		}
+	}
+	return b, cmd
+}
+
+// paneStep runs one NORMAL key while a side pane has focus: type to filter, up/down
 // to select, enter to join a channel or start a line mentioning a nick, tab to the
 // next pane, esc back to chat.
-func (a App) paneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (a App) paneStep(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	_, names := a.paneItems(a.focus)
 	switch k := msg.String(); k {
 	case "esc":
