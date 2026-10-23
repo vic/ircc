@@ -6,7 +6,7 @@ pkgs.buildGoModule {
     root = ./.;
     fileset = pkgs.lib.fileset.unions [ ./cmd ./internal ./go.mod ./go.sum ];
   };
-  vendorHash = "sha256-Im0gy9h9JYcQuD5gktHmGb+yNEuiDmHu4yIyU/y2hH8=";
+  vendorHash = "sha256-RYxmQayATgIm/4zIyFs6nozTQdTqX4AwfqbKcP0LNHM=";
   env.CGO_ENABLED = 0;
   subPackages = [ "cmd/ircc" ];
 }
