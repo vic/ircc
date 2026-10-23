@@ -318,3 +318,16 @@ func ParseWrapper(content string) (Wrapper, error) {
 	}
 	return Wrapper{From: from, FromName: m[3], Mode: mode, Body: m[5]}, nil
 }
+
+// FindWrapper parses the first cross-session wrapper inside text. Claude records
+// a received message with a header before it and a notice after it (measured
+// 2026-10-22: "Another Claude session sent a message:\n<cross-session-message ...'), so
+// the wrapper is cut out first.
+func FindWrapper(text string) (Wrapper, error) {
+	i := strings.Index(text, "<cross-session-message ")
+	j := strings.Index(text, closeTag)
+	if i < 0 || j < i {
+		return Wrapper{}, errors.New("peer: no cross-session-message wrapper in text")
+	}
+	return ParseWrapper(text[i : j+len(closeTag)])
+}

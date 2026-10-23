@@ -571,7 +571,7 @@ func blockLines(ev transcript.Event, session, user string) []model.Line {
 	var out []model.Line
 	for _, b := range ev.Blocks {
 		switch {
-		case b.Kind == transcript.TextBlock && ev.Type == "user" && strings.HasPrefix(b.Text, wrapperPrefix):
+		case b.Kind == transcript.TextBlock && ev.Type == "user" && strings.Contains(b.Text, wrapperPrefix):
 			if l, ok := wrappedLine(b.Text, user, now); ok {
 				out = append(out, l)
 			}
@@ -603,7 +603,7 @@ const wrapperPrefix = "<" + "cross-session-message"
 // sent line (from an ircc- socket) is hidden, already echoed; a session-to-session
 // message stays visible, dim, from its from-name; an unparsable wrapper is shown raw.
 func wrappedLine(text, user string, now time.Time) (model.Line, bool) {
-	w, err := peer.ParseWrapper(text)
+	w, err := peer.FindWrapper(text)
 	if err != nil {
 		return model.Line{At: now, Nick: user, Text: text, Dim: true, Kind: model.Transcript}, true
 	}
