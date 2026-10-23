@@ -365,3 +365,16 @@ func TestSearchPickerJumps(t *testing.T) {
 		t.Fatal("hit line not on screen")
 	}
 }
+
+func TestMultilineKeepsLayout(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "bob", Text: "Plan:\n1. first\n    code indented\n\nlast"}})
+	a = next.(App)
+	v := ansi.Strip(checkFrame(t, a, 80, 24))
+	for _, want := range []string{"<bob>      Plan:", "           1. first", "               code indented", "           last"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q in\n%s", want, v)
+		}
+	}
+}

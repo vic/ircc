@@ -29,7 +29,7 @@ func (m Model) add(ch string, l Line, live bool) (Model, error) {
 		if c.Name != ch {
 			continue
 		}
-		l.Nick, l.Text = clean(l.Nick), clean(l.Text)
+		l.Nick, l.Text = clean(l.Nick), cleanText(l.Text)
 		c.Lines = c.Lines.clone()
 		c.Lines.Push(l)
 		if !live {
@@ -97,4 +97,15 @@ func (m Model) toFront(i int) Model {
 		m.cur++
 	}
 	return m
+}
+
+// cleanText is clean for message text: it keeps line breaks and indentation (tab =
+// 4 spaces) so agent replies keep their layout; other control runes still go.
+func cleanText(s string) string {
+	s = strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\t", "    ")
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = clean(l)
+	}
+	return strings.Join(lines, "\n")
 }

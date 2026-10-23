@@ -103,14 +103,14 @@ func TestCurrentEmpty(t *testing.T) {
 }
 
 func TestAddLineSanitizes(t *testing.T) {
-	for _, tc := range []struct{ name, in, want string }{
-		{"OSC52 clipboard + clear", "hi\x1b]52;c;ZXZpbA==\x07\x1b[2J", "hi]52;c;ZXZpbA==[2J"},
-		{"BEL DEL", "a\x07b\x7fc", "abc"},
-		{"C1 CSI", "a\u009b2Jb", "a2Jb"},
-		{"tab newline to space", "a\tb\nc\r\nd", "a b c  d"},
-		{"invalid utf8", "a\xffb", "a�b"},
-		{"bidi override", "a‮b​c", "abc"},
-		{"printable unchanged", "héllo wörld, ok <x> 日本", "héllo wörld, ok <x> 日本"},
+	for _, tc := range []struct{ name, in, want, text string }{ // text: when it differs from want
+		{"OSC52 clipboard + clear", "hi\x1b]52;c;ZXZpbA==\x07\x1b[2J", "hi]52;c;ZXZpbA==[2J", ""},
+		{"BEL DEL", "a\x07b\x7fc", "abc", ""},
+		{"C1 CSI", "a\u009b2Jb", "a2Jb", ""},
+		{"nick one line, text keeps layout", "a\tb\nc\r\nd", "a b c  d", "a    b\nc\nd"},
+		{"invalid utf8", "a\xffb", "a�b", ""},
+		{"bidi override", "a‮b​c", "abc", ""},
+		{"printable unchanged", "héllo wörld, ok <x> 日本", "héllo wörld, ok <x> 日本", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m, err := twoChans(t).AddLine("#a", Line{Nick: "n\x1b[31m" + tc.in, Text: tc.in})
@@ -118,7 +118,11 @@ func TestAddLineSanitizes(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := m.Channels()[0].Lines.All()[0]
-			if got.Text != tc.want || got.Nick != "n[31m"+tc.want {
+			text := tc.text
+			if text == "" {
+				text = tc.want
+			}
+			if got.Text != text || got.Nick != "n[31m"+tc.want {
 				t.Fatalf("got nick %q text %q, want %q", got.Nick, got.Text, tc.want)
 			}
 		})
@@ -150,4 +154,14 @@ func chanAt(t *testing.T, m Model, name string) (Channel, int) {
 	}
 	t.Fatalf("no channel %s in %v", name, names(m))
 	return Channel{}, -1
+}
+
+func TestCleanTextKeepsLayout(t *testing.T) {
+	got := cleanText("a\r\n\tb\n  c\x1b[2J​")
+	if got != "a\n    b\n  c[2J" { // NEG: ESC and zero-width still dropped
+		t.Fatalf("got %q", got)
+	}
+	if clean("x\ny") != "x y" { // nicks stay one line
+		t.Fatal("clean changed")
+	}
 }

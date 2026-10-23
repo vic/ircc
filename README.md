@@ -76,7 +76,8 @@ all four projects.
    lib1 already give us, and what must change in lib2 and proj1?"
 
 All four agents see the question and each other's replies. Each one answers from
-its own code and memory, and they can ask each other directly (`@lib2 ...`). The
+its own code and memory, and they can ask each other directly (`@lib2 ...`).
+Each claude session can also mention the channel **as if it was another peer**. The
 room is saved, so `&handson` comes back the next time you start ircc.
 
 ## Example: only the replies that matter
@@ -103,4 +104,3 @@ press `m` again for all lines, or switch to the Claude session itself.
 just test
 ```
 
-The design is in `vic/DESIGN.md`.
