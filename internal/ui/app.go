@@ -199,7 +199,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a = a.note("literal send failed: " + msg.Err.Error())
 		}
 	case shellOutMsg:
-		a = a.insertBlock(string(msg.Out))
+		a = a.insertBlock(msg.Cmd, string(msg.Out))
 		if msg.Err != nil {
 			a = a.note("command: " + msg.Err.Error())
 		}
@@ -1431,8 +1431,9 @@ func (a App) grepSync() App {
 	return a
 }
 
-// shellOutMsg is the finished output of a ! command; Err is its exit error, if any.
+// shellOutMsg is the finished output of a ! command; Cmd is the command line, Err its exit error, if any.
 type shellOutMsg struct {
+	Cmd string
 	Out []byte
 	Err error
 }
@@ -1444,14 +1445,14 @@ func (a App) runCapture(cmd string) (App, tea.Cmd) {
 	}
 	return a, func() tea.Msg {
 		out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
-		return shellOutMsg{Out: out, Err: err}
+		return shellOutMsg{Cmd: cmd, Out: out, Err: err}
 	}
 }
 
-// insertBlock appends text to the input as a markdown fenced block and opens INSERT, so it can be edited and sent.
-func (a App) insertBlock(text string) App {
+// insertBlock appends cmd and its output as a sh fenced block, the command as a $ line, and opens INSERT so it can be edited and sent.
+func (a App) insertBlock(cmd, text string) App {
 	a.mode = Insert
-	a = a.insertFence("", strings.TrimRight(text, "\n"))
+	a = a.insertFence("sh", "$ "+cmd+"\n"+strings.TrimRight(text, "\n"))
 	a.in.MoveToEnd()
 	a.in.Focus()
 	return a

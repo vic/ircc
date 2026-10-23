@@ -938,8 +938,8 @@ func TestCaptureInsertsBlock(t *testing.T) {
 	if a.prompt != 0 || cmd == nil || len(log) != 0 {
 		t.Fatalf("enter: prompt %q cmd %v sent %d", a.prompt, cmd != nil, len(log))
 	}
-	next, _ := a.Update(shellOutMsg{Out: []byte("hi\n")})
-	if a = next.(App); a.in.Value() != "```\nhi\n```\n" || a.mode != Insert {
+	next, _ := a.Update(shellOutMsg{Cmd: "echo hi", Out: []byte("hi\n")})
+	if a = next.(App); a.in.Value() != "```sh\n$ echo hi\nhi\n```\n" || a.mode != Insert {
 		t.Fatalf("block: %q mode %v", a.in.Value(), a.mode)
 	}
 }
