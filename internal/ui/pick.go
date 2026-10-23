@@ -53,7 +53,7 @@ func pickList(names []string, q string) []pickMatch {
 }
 
 // pickBox is the picker box (channels or lines, titled what), drawn over the screen by overlayCentered.
-func pickBox(w, h int, what, q string, ms []pickMatch, sel int) string {
+func pickBox(w, h int, what, q string, ms []pickMatch, sel int, multi bool, marks []string) string {
 	rows := []string{title.Render(what) + " " + prompt.Render(">") + " " + q, ""}
 	for i, m := range ms {
 		if i >= max(h-6, 1) {
@@ -73,12 +73,24 @@ func pickBox(w, h int, what, q string, ms []pickMatch, sel int) string {
 				b.WriteString(st.Render(string(r)))
 			}
 		}
-		rows = append(rows, title.Render(mark)+" "+b.String())
+		check := ""
+		if multi { // S picker: a check column, marked nicks get a tick
+			check = " "
+			if slices.Contains(marks, m.name) {
+				check = "✓"
+			}
+			check += " "
+		}
+		rows = append(rows, title.Render(mark)+" "+check+b.String())
 	}
 	if len(ms) == 0 {
 		rows = append(rows, dimmed.Render("no match"))
 	}
-	rows = append(rows, "", keyHint("enter", "go", "up down", "select", "esc", "close"))
+	keys := keyHint("enter", "go", "up down", "select", "esc", "close")
+	if multi { // S: space marks, enter applies
+		keys = keyHint("space", "select", "enter", "go", "esc", "close")
+	}
+	rows = append(rows, "", keys)
 	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("8")).
 		Padding(0, 1).Width(min(max(w/2, 40), w)).Render(strings.Join(rows, "\n"))
 	return box

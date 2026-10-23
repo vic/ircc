@@ -108,7 +108,8 @@ type App struct {
 	stamps   bool            // s: show "15:04 " before each line
 	pick     bool            // ctrl+o or /: the picker is open
 	pickWhat pickKind        // what the picker lists: channels (ctrl+o), lines (/), speakers (S)
-	speaker  string          // S: show only this nick's lines; "" all
+	speakers []string        // S: show only these nicks' lines; none = all
+	marks    []string        // S picker: nicks marked with space, applied by enter
 	resumeTo string          // channel to focus once it shows up (the last one of the previous run)
 	toasts   []toast         // notification cards, newest last; the tick drops old ones
 	helpOff  int             // help box scroll (j k, wheel) when it is taller than the screen
@@ -449,8 +450,8 @@ func (a App) focusName(name string) App {
 	from := a.m.Current().Name
 	for i, c := range a.m.Channels() {
 		if c.Name == name && name != from {
-			a.m, _ = a.m.Focus(i)     // i is in range: it comes from Channels
-			a.hit, a.speaker = -1, "" // the speaker filter belongs to the channel it was set in
+			a.m, _ = a.m.Focus(i)       // i is in range: it comes from Channels
+			a.hit, a.speakers = -1, nil // the speaker filter belongs to the channel it was set in
 		}
 	}
 	return a
@@ -534,7 +535,7 @@ func (a App) inputLine() (label, input, hint string) {
 func (a App) footer() string {
 	// states first: on a narrow screen the keys fall off the end (they are in ? help)
 	return fit(cell, " "+keyHint("t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps),
-		"S", "speaker:"+cmp.Or(a.speaker, "all"), "/", "search", "J K", "turns", "A", "reply @", ":", "literal"), max(a.w, 1)) // one row
+		"S", "speaker:"+cmp.Or(strings.Join(a.speakers, ","), "all"), "/", "search", "J K", "turns", "A", "reply @", ":", "literal"), max(a.w, 1)) // one row
 }
 
 // View is the full-screen frame; screen is its text.
@@ -553,7 +554,7 @@ func (a App) screen() string {
 		return overlayCentered(screen, a.w, a.h, helpBox(a.h, a.helpOff))
 	case a.pick:
 		what := [...]string{pickChans: "channel / @nick", pickLines: "search", pickSpeakers: "speaker", pickInvite: "invite to " + a.m.Current().Name, pickFiles: "file"}[a.pickWhat]
-		return overlayCentered(screen, a.w, a.h, pickBox(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel))
+		return overlayCentered(screen, a.w, a.h, pickBox(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel, a.pickWhat == pickSpeakers, a.shownMarks()))
 	}
 	return screen
 }
@@ -659,7 +660,7 @@ func (a App) WithCmd(f func(ch string, c model.Cmd) tea.Cmd) App {
 // m (mentions) keeps direct lines only: in a # channel the Chat lines (replies to
 // you, your lines), in a & room only lines that @mention you or are yours.
 func (a App) shows(k model.ChanKind, l model.Line) bool {
-	if a.speaker != "" && l.Nick != a.speaker {
+	if len(a.speakers) > 0 && !slices.Contains(a.speakers, l.Nick) {
 		return false
 	}
 	if !a.tools && l.Kind == model.Tool {
@@ -746,9 +747,18 @@ const (
 // allSpeakers is the speaker picker's first entry: it clears the filter.
 const allSpeakers = "(all)"
 
+// shownMarks is the S picker's checked entries: (all) when no nick is marked, else the nicks.
+func (a App) shownMarks() []string {
+	if len(a.marks) == 0 {
+		return []string{allSpeakers}
+	}
+	return a.marks
+}
+
 // openPick opens the fuzzy picker over k.
 func (a App) openPick(k pickKind) App {
 	a.pick, a.pickWhat, a.psel, a.pq = true, k, 0, textinput.New()
+	a.marks = slices.Clone(a.speakers) // S starts with the current filter marked
 	a.pq.Prompt = ""
 	a.pq.Focus()
 	return a
@@ -830,12 +840,19 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			a.pick = false
 			return a.runCmd("/invite " + ms[a.psel].name + " " + a.m.Current().Name)
 		}
-		if a.psel < len(ms) && a.pickWhat == pickSpeakers {
-			a.speaker, a.hit, a.offs = ms[a.psel].name, -1, nil // positions index the shown lines, which changed
-			if a.speaker == allSpeakers {
-				a.speaker = ""
+		if a.pickWhat == pickSpeakers { // an unchecked result alone; a checked one applies the checks
+			speakers := slices.Clone(a.marks)
+			if a.psel < len(ms) && !slices.Contains(a.shownMarks(), ms[a.psel].name) {
+				speakers = []string{ms[a.psel].name}
+				if speakers[0] == allSpeakers {
+					speakers = nil
+				}
 			}
-		} else if a.psel < len(ms) && a.pickWhat == pickLines {
+			a.speakers, a.hit, a.offs = speakers, -1, nil // positions index the shown lines, which changed
+			a.pick = false
+			return a, nil
+		}
+		if a.psel < len(ms) && a.pickWhat == pickLines {
 			a.hit, a.query = ms[a.psel].idx, a.pq.Value() // n / N go on from here
 			a = a.showHit()
 		} else if a.psel < len(ms) {
@@ -849,6 +866,17 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		a.pick = false
+	case "space": // S picker: mark or unmark the selected nick; (all) clears the marks
+		if a.pickWhat == pickSpeakers && a.psel < len(ms) {
+			n := ms[a.psel].name
+			if n == allSpeakers {
+				a.marks = nil
+			} else if slices.Contains(a.marks, n) {
+				a.marks = slices.DeleteFunc(slices.Clone(a.marks), func(s string) bool { return s == n })
+			} else {
+				a.marks = append(slices.Clone(a.marks), n)
+			}
+		}
 	case "up", "ctrl+p":
 		a.psel = max(a.psel-1, 0)
 	case "down", "ctrl+n":

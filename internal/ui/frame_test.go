@@ -579,14 +579,14 @@ func TestSpeakerFilter(t *testing.T) {
 		t.Fatalf("speakers %q", got)
 	}
 	a = typeText(t, a, "lib1")
-	a, _ = press(t, a, "enter")
+	a, _ = press(t, a, "space", "enter") // marks lib1, enter applies
 	v := ansi.Strip(a.screen())
-	if a.speaker != "lib1" || !strings.Contains(v, "from lib1") || strings.Contains(v, "from vic") || !strings.Contains(v, "speaker:lib1") {
-		t.Fatalf("filter %q:\n%s", a.speaker, v)
+	if !slices.Equal(a.speakers, []string{"lib1"}) || !strings.Contains(v, "from lib1") || strings.Contains(v, "from vic") || !strings.Contains(v, "speaker:lib1") {
+		t.Fatalf("filter %q:\n%s", a.speakers, v)
 	}
-	a, _ = press(t, a, "S", "enter") // (all) clears
-	if a.speaker != "" || !strings.Contains(ansi.Strip(a.screen()), "from vic") {
-		t.Fatalf("clear: %q", a.speaker)
+	a, _ = press(t, a, "S", "space", "enter") // (all) clears the marks; none marked = all
+	if len(a.speakers) != 0 || !strings.Contains(ansi.Strip(a.screen()), "from vic") {
+		t.Fatalf("clear: %q", a.speakers)
 	}
 }
 
