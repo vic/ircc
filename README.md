@@ -58,6 +58,7 @@ Press `?` in ircc for all of them.
 | i            | type a line (`O` starts a reply to the last @mention)   |
 | /            | fuzzy search; enter jumps to the line                   |
 | J, K         | next / previous speaker change                          |
+| S            | show only one speaker (fuzzy pick)                      |
 | wheel, j, k  | scroll                                                  |
 | t, m, s      | toggle tool lines, mentions only, times                 |
 | :            | send a line as is to the session                        |

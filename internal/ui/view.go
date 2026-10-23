@@ -401,6 +401,7 @@ var helpSections = []struct {
 		{"ctrl+t", "fuzzy picker: channels, and @nicks to mention"},
 		{"wheel j k", "scroll"},
 		{"J K", "next / previous speaker change"},
+		{"S", "show only one speaker (fuzzy pick; (all) clears)"},
 		{"shift+drag", "select text (the terminal does it; ircc takes plain drags)"},
 		{"ctrl+d ctrl+u", "half page down / up"},
 		{"gg G", "top / bottom"},

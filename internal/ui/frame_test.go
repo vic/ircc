@@ -551,7 +551,7 @@ func TestPromptOnlyInInsert(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
 	last := func(a App) string { rs := strings.Split(ansi.Strip(a.screen()), "\n"); return rs[len(rs)-1] }
-	if l := last(a); strings.HasPrefix(l, ">") || !strings.Contains(l, "J K speaker") || !strings.Contains(l, "tools:off") {
+	if l := last(a); strings.HasPrefix(l, ">") || !strings.Contains(l, "tools:off") || !strings.Contains(l, "speaker:all") {
 		t.Fatalf("normal last row %q", l)
 	}
 	a, _ = press(t, a, "i")
@@ -563,4 +563,27 @@ func TestPromptOnlyInInsert(t *testing.T) {
 		t.Fatalf(": last row %q", l)
 	}
 	checkFrame(t, a, a.w, a.h)
+}
+
+func TestSpeakerFilter(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	for _, n := range []string{"vic", "lib1", "vic", "lib2"} {
+		next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: n, Text: "from " + n}})
+		a = next.(App)
+	}
+	a, _ = press(t, a, "S")
+	if got := strings.Join(a.pickSource(), ","); got != "(all),lib2,vic,lib1" { // newest first
+		t.Fatalf("speakers %q", got)
+	}
+	a = typeText(t, a, "lib1")
+	a, _ = press(t, a, "enter")
+	v := ansi.Strip(a.screen())
+	if a.speaker != "lib1" || !strings.Contains(v, "from lib1") || strings.Contains(v, "from vic") || !strings.Contains(v, "speaker:lib1") {
+		t.Fatalf("filter %q:\n%s", a.speaker, v)
+	}
+	a, _ = press(t, a, "S", "enter") // (all) clears
+	if a.speaker != "" || !strings.Contains(ansi.Strip(a.screen()), "from vic") {
+		t.Fatalf("clear: %q", a.speaker)
+	}
 }

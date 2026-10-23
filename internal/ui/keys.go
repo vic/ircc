@@ -39,6 +39,7 @@ const (
 	LineDown
 	ToggleStamps
 	PickChan
+	PickSpeaker
 	ReplyMention
 )
 
@@ -94,6 +95,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: Bottom}, Normal, ""
 		case "ctrl+t":
 			return Action{Kind: PickChan}, Normal, ""
+		case "S":
+			return Action{Kind: PickSpeaker}, Normal, ""
 		case "up":
 			return Action{Kind: LineUp}, Normal, ""
 		case "down":
