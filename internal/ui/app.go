@@ -78,6 +78,7 @@ type App struct {
 	offs    map[string]int // per channel: lines scrolled back from the newest
 	help    bool           // the ? popup is shown; the next key closes it
 	prev    string         // channel focused before the current one; tab returns to it
+	stamps  bool           // s: show "15:04 " before each line
 	tools   bool           // t: show tool lines
 	chat    bool           // c: show only Chat lines (replies, rooms, own lines)
 }
@@ -207,6 +208,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.hit, a.offs = -1, nil // positions index the shown lines, which changed
 	case Help:
 		a.help = true
+	case ToggleStamps:
+		a.stamps, a.offs = !a.stamps, nil // row counts changed
 	case LastChan:
 		a = a.focusName(a.prev)
 	case NextChan, PrevChan, GotoChan:
@@ -354,7 +357,7 @@ func (a App) screen() string {
 		return helpView(a.w, a.h)
 	}
 	label, input := a.inputLine()
-	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, chanNicks(a.m.Current(), a.user), a.lines(a.m.Current()))
+	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, chanNicks(a.m.Current(), a.user), a.lines(a.m.Current()), a.wrap())
 }
 
 // page is the number of scrollback rows View shows; a long input takes rows from it.
@@ -371,7 +374,7 @@ func (a App) setOff(ch string, off int) App {
 	n := 0
 	for _, c := range a.m.Channels() {
 		if c.Name == ch {
-			n = rowCount(a.lines(c), textWidth(a.w, a.h))
+			n = rowCount(a.lines(c), textWidth(a.w, a.h), a.wrap())
 		}
 	}
 	offs := make(map[string]int, len(a.offs)+1)
@@ -394,7 +397,7 @@ func (a App) scroll(act Action) App {
 		return a.setOff(ch, a.off()-act.N*max(a.page()/2, 1))
 	case Top:
 		cur := a.m.Current()
-		return a.setOff(ch, rowCount(a.lines(cur), textWidth(a.w, a.h)))
+		return a.setOff(ch, rowCount(a.lines(cur), textWidth(a.w, a.h), a.wrap()))
 	}
 	return a.setOff(ch, 0)
 }
@@ -427,7 +430,7 @@ func (a App) addLine(ch string, l model.Line) (App, error) {
 	}
 	a.m = m
 	if a.offs[ch] > 0 && a.shows(l) {
-		a = a.setOff(ch, a.offs[ch]+len(wrapLine(l, textWidth(a.w, a.h))))
+		a = a.setOff(ch, a.offs[ch]+len(a.wrap()(l, textWidth(a.w, a.h))))
 	}
 	return a, nil
 }
@@ -480,4 +483,12 @@ func (a App) sendLiteral(text string) (tea.Model, tea.Cmd) {
 	}
 	lit := a.literal // blocking I/O runs in the Cmd, never in Update
 	return a, func() tea.Msg { return LiteralResultMsg{Err: lit(ch, text)} }
+}
+
+// wrap is the row wrapper the s toggle selects.
+func (a App) wrap() wrapFunc {
+	if a.stamps {
+		return wrapStamped
+	}
+	return wrapLine
 }

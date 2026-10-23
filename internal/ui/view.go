@@ -117,6 +117,9 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 	if l.Dim || l.Kind == model.Tool {
 		st = faint
 	}
+	if s := stampRE.FindString(r); s != "" {
+		lead, r = lead+dimmed.Render(s), r[len(s):]
+	}
 	nk := "<" + l.Nick + ">"
 	if after, ok := strings.CutPrefix(r, nk); ok {
 		return fit(cell, lead+nickStyle(l.Nick).Render(nk)+mentions(after, st), n)
@@ -132,18 +135,18 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 // Channel markers: ● current, ○ gone, else the unread count.
 func View(m model.Model, ml model.Modeline, input string, w, h, off, hit int) string {
 	cur := m.Current()
-	return render(m, ml, input, w, h, off, hit, memberNicks(cur), cur.Lines.All())
+	return render(m, ml, input, w, h, off, hit, memberNicks(cur), cur.Lines.All(), wrapLine)
 }
 
 // render is View with the nick pane given as nicks and the shown lines of the current channel.
-func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, nicks []string, shown []model.Line) string {
+func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, nicks []string, shown []model.Line, wrap wrapFunc) string {
 	if w < 1 || h < 3 {
 		return ""
 	}
 	cur := m.Current()
 	ir := inputRows(input, w, h)
 	n := paneRows(w, h, len(ir))
-	lines, of := tailRows(shown, n, off, textWidth(w, h), wrapLine)
+	lines, of := tailRows(shown, n, off, textWidth(w, h), wrap)
 
 	var rows []string
 	if !wide(w, h) {
@@ -236,10 +239,10 @@ func wrapLine(l model.Line, width int) []string {
 }
 
 // rowCount is how many rows c's scrollback takes at width.
-func rowCount(ls []model.Line, width int) int {
+func rowCount(ls []model.Line, width int, wrap wrapFunc) int {
 	n := 0
 	for _, l := range ls {
-		n += len(wrapLine(l, width))
+		n += len(wrap(l, width))
 	}
 	return n
 }
@@ -317,6 +320,7 @@ var helpSections = []struct {
 		{":", "send a line as is to the session (e.g. /compact)"},
 		{"t", "show / hide tool lines"},
 		{"c", "chat only / all lines"},
+		{"s", "show / hide times (15:04)"},
 	}},
 	{"INSERT", [][2]string{
 		{"enter", "send to the channel"},
@@ -364,4 +368,24 @@ func mentions(s string, st lipgloss.Style) string {
 		b.WriteString(st.Render(s[last:]))
 	}
 	return b.String()
+}
+
+// wrapFunc wraps one line to rows of a width: wrapLine, or wrapStamped with s on.
+type wrapFunc func(model.Line, int) []string
+
+// stampRE is the "15:04 " that wrapStamped puts before a nick.
+var stampRE = regexp.MustCompile(`^\d\d:\d\d `)
+
+// wrapStamped is wrapLine after a short "15:04 " time; later rows are indented under it.
+func wrapStamped(l model.Line, width int) []string {
+	st := l.At.Format("15:04") + " "
+	rs := wrapLine(l, max(width-len(st), 1))
+	for i := range rs {
+		if i == 0 {
+			rs[i] = st + rs[i]
+		} else {
+			rs[i] = strings.Repeat(" ", len(st)) + rs[i]
+		}
+	}
+	return rs
 }

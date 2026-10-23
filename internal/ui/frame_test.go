@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -225,5 +226,21 @@ func TestNickColorsEverywhere(t *testing.T) {
 	}
 	if got := ansi.Strip(mentions("x @y z", cell)); got != "x @y z" { // text unchanged
 		t.Fatalf("mentions changed text: %q", got)
+	}
+}
+
+func TestStampsToggle(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	at := time.Date(2026, 10, 22, 9, 7, 0, 0, time.Local)
+	next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{At: at, Nick: "bob", Text: strings.Repeat("long text ", 20)}})
+	a = next.(App)
+	if strings.Contains(ansi.Strip(a.screen()), "09:07") {
+		t.Fatal("stamp shown while off")
+	}
+	a, _ = press(t, a, "s")
+	v := checkFrame(t, a, 80, 24)
+	if !strings.Contains(ansi.Strip(v), "09:07 <bob>") || !strings.Contains(v, nickStyle("bob").Render("<bob>")) {
+		t.Fatalf("stamp or nick color missing:\n%s", ansi.Strip(v))
 	}
 }
