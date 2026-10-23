@@ -130,7 +130,7 @@ func handleConn(c *peer.Conn, timeout time.Duration, live func() []registry.Entr
 func handleFrame(pid int, b []byte, live func() []registry.Entry, line func(string, model.Line), note func(model.Line)) {
 	in, err := peer.ParseFrame(b)
 	if err != nil {
-		noteText(note, fmt.Sprintf("inbound: unparsed frame from pid %d (%v): %s", pid, err, clip(string(b), 300)))
+		noteText(note, fmt.Sprintf("inbound: unparsed frame from pid %d, content hidden", pid))
 		return
 	}
 	var sessions []model.Session
@@ -155,12 +155,4 @@ func handleFrame(pid int, b []byte, live func() []registry.Entry, line func(stri
 		nick = in.AgentNick + "@" + nick
 	}
 	line(ch, model.Line{At: time.Now(), Nick: nick, Text: in.Body})
-}
-
-// clip shortens s to n bytes for a note.
-func clip(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

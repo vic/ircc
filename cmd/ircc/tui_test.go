@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"ircc/internal/registry"
+	"ircc/internal/ui"
 )
 
 // screen collects the frames the program renders, as plain text. The v2 renderer
@@ -30,6 +31,9 @@ func (s *screen) Write(p []byte) (int, error) { s.mu.Lock(); defer s.mu.Unlock()
 // frames is a tea.WithFilter hook. App is a value: Update on a copy gives the frame
 // the program shows after msg, with no side effect (returned Cmds are dropped).
 func (s *screen) frames(m tea.Model, msg tea.Msg) tea.Msg {
+	if app, ok := m.(ui.App); ok { // render from a copy: a second Update on the same input buffer would double the text
+		m = app.Fresh()
+	}
 	if next, _ := m.Update(msg); next != nil {
 		s.Write([]byte(ansi.Strip(next.View().Content) + "\n"))
 	}
@@ -114,10 +118,10 @@ func TestTUIKeys(t *testing.T) {
 	at = out.waitFor(t, at, "INSERT  #alpha")
 	// real terminal bytes: ctrl+n, ctrl+p, arrows, esc, then the : prompt
 	for _, step := range []struct{ keys, want string }{
-		{"\x0e", "INSERT  #beta"}, {"\x10", "INSERT  #alpha"}, {"\x1b", "NORMAL  #alpha"},
+		{"\x0e", "INSERT  #alpha"}, {"\x10", "INSERT  #alpha"}, {"\x1b", "NORMAL  #alpha"}, // INSERT ctrl+n/p step input history, not channels
 		{"\x0e", "NORMAL  #beta"}, {"\x10", "NORMAL  #alpha"},
 		{"\x1b[A", "NORMAL  #alpha"}, // up selects a line (vic 2026-10-23), the channel stays
-		{":", "send as is"}, {"\x1b", "NORMAL  #alpha"}, {"i/join &x\r", "INSERT  &x"},
+		{":", "send as is"}, {"\x1b", "NORMAL  #alpha"}, {"i", "INSERT  #alpha"}, {"/join &x", "> /join &x"}, {"\r", "INSERT  &x"},
 	} {
 		type_(step.keys)
 		at = out.waitFor(t, at, step.want)

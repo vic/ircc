@@ -1531,3 +1531,16 @@ func (a App) highlight() string {
 	}
 	return a.query
 }
+
+// Fresh returns a with its input in a new buffer: the text and cursor are the same, but
+// Update on the copy cannot change the original input (textarea shares its lines).
+func (a App) Fresh() App {
+	row, col := a.in.Line(), a.in.Column()
+	a.in.SetValue(a.in.Value())
+	a.in.MoveToBegin()
+	for i := 0; i < row; i++ {
+		a.in.CursorDown()
+	}
+	a.in.SetCursorColumn(col)
+	return a
+}

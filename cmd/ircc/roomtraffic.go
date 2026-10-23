@@ -142,7 +142,7 @@ func (r *runner) onRoomFrame(name rooms.Name, pid int, b []byte) {
 	}
 	in, err := peer.ParseFrame(b)
 	if err != nil {
-		r.emit(ui.NoteMsg{L: model.Line{At: time.Now(), Dim: true, Text: fmt.Sprintf("%s: unparsed frame from pid %d (%v): %s", name, pid, err, clip(string(b), 300))}})
+		r.emit(ui.NoteMsg{L: model.Line{At: time.Now(), Dim: true, Text: fmt.Sprintf("%s: unparsed frame from pid %d, content hidden", name, pid)}})
 		return
 	}
 	parent, ok := rooms.Identify(pid, r.liveCopy(), room)
