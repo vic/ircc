@@ -527,14 +527,21 @@ func (a App) View() tea.View {
 	return v
 }
 
+// screen is the chat screen, with the help box or the picker drawn over it.
 func (a App) screen() string {
-	if a.help {
-		return helpView(a.w, a.h, a.helpOff)
-	}
-	if a.pick {
+	screen := a.chatScreen()
+	switch {
+	case a.help:
+		return overlayCentered(screen, a.w, a.h, helpBox(a.h, a.helpOff))
+	case a.pick:
 		what := [...]string{pickChans: "channel / @nick", pickLines: "search", pickSpeakers: "speaker", pickInvite: "invite to " + a.m.Current().Name}[a.pickWhat]
-		return pickView(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel)
+		return overlayCentered(screen, a.w, a.h, pickBox(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel))
 	}
+	return screen
+}
+
+// chatScreen is the scrollback, input and modeline, with the completion and toasts floating over them.
+func (a App) chatScreen() string {
 	label, input, hint := a.inputLine()
 	screen := render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.sides(), a.lines(a.m.Current()), a.wrap(), nil, hint)
 	modeline := a.h - len(inputRows(input, a.w, a.h)) - 1

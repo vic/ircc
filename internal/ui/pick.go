@@ -52,8 +52,8 @@ func pickList(names []string, q string) []pickMatch {
 	return out
 }
 
-// pickView is the picker box (channels or lines, titled what) centered in exactly w x h cells.
-func pickView(w, h int, what, q string, ms []pickMatch, sel int) string {
+// pickBox is the picker box (channels or lines, titled what), drawn over the screen by overlayCentered.
+func pickBox(w, h int, what, q string, ms []pickMatch, sel int) string {
 	rows := []string{title.Render(what) + " " + prompt.Render(">") + " " + q, ""}
 	for i, m := range ms {
 		if i >= max(h-6, 1) {
@@ -81,9 +81,5 @@ func pickView(w, h int, what, q string, ms []pickMatch, sel int) string {
 	rows = append(rows, "", keyHint("enter", "go", "up down", "select", "esc", "close"))
 	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("8")).
 		Padding(0, 1).Width(min(max(w/2, 40), w)).Render(strings.Join(rows, "\n"))
-	out := strings.Split(lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box), "\n")
-	for i := range out {
-		out[i] = fit(cell, out[i], w)
-	}
-	return strings.Join(out[:min(len(out), h)], "\n")
+	return box
 }

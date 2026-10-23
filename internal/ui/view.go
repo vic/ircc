@@ -381,23 +381,27 @@ func chanNicks(c model.Channel, user string) []string {
 	return append([]string{user}, memberNicks(c)...)
 }
 
-// helpView is the help box centered in exactly w x h cells.
-func helpView(w, h, off int) string {
-	if w < 1 || h < 1 {
-		return ""
-	}
+// helpBox is the help box in h rows at most: taller than that, a window that scrolls.
+func helpBox(h, off int) string {
 	box := strings.Split(lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("8")).Padding(0, 1).Render(helpText()), "\n")
 	if len(box) <= h {
-		rows := strings.Split(lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, strings.Join(box, "\n")), "\n")[:h]
-		for i, r := range rows {
-			rows[i] = fit(cell, r, w)
-		}
-		return strings.Join(rows, "\n")
+		return strings.Join(box, "\n")
 	}
-	off = helpOff(len(box), h, off) // taller than the screen: a window that scrolls
-	rows := box[off : off+h]
-	for i, r := range rows {
-		rows[i] = fit(cell, lipgloss.PlaceHorizontal(w, lipgloss.Center, r), w)
+	off = helpOff(len(box), h, off)
+	return strings.Join(box[off:off+h], "\n")
+}
+
+// overlayCentered draws box centered over screen (w x h cells); the cells around it keep their content.
+func overlayCentered(screen string, w, h int, box string) string {
+	rows := strings.Split(screen, "\n")
+	bl := strings.Split(box, "\n")
+	bw := min(lipgloss.Width(bl[0]), w)
+	top, left := max((h-len(bl))/2, 0), max((w-bw)/2, 0)
+	for j, b := range bl {
+		if i := top + j; i < len(rows) {
+			b = ansi.Truncate(b, bw, "")
+			rows[i] = fit(cell, ansi.Cut(rows[i], 0, left)+b+ansi.Cut(rows[i], left+bw, w), w)
+		}
 	}
 	return strings.Join(rows, "\n")
 }
