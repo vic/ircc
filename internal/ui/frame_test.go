@@ -261,7 +261,7 @@ func TestPicker(t *testing.T) {
 	next, _ := a.Update(RoomsMsg{"&handson", "&review"})
 	a, _ = press(t, next.(App), "i")
 	a = typeText(t, a, "half typed")
-	a, _ = press(t, a, "ctrl+t")
+	a, _ = press(t, a, "ctrl+o")
 	a = typeText(t, a, "hon") // fuzzy: h..o..n in &handson only
 	v := checkFrame(t, a, 80, 24)
 	// the picker is an overlay: &review still shows behind it, but is not a match
@@ -272,7 +272,7 @@ func TestPicker(t *testing.T) {
 	if a.pick || cur(a) != "&handson" || a.in.Value() != "half typed" {
 		t.Fatalf("enter: pick %v cur %s input %q", a.pick, cur(a), a.in.Value())
 	}
-	a, _ = press(t, a, "ctrl+t", "x", "y", "z", "enter") // NEG: no match, enter stays
+	a, _ = press(t, a, "ctrl+o", "x", "y", "z", "enter") // NEG: no match, enter stays
 	if a.pick || cur(a) != "&handson" {
 		t.Fatalf("no-match enter: %s", cur(a))
 	}
@@ -499,13 +499,13 @@ func TestPickerNicks(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
 	next, _ := a.Update(AgentsMsg{Ch: "#a", Agents: []model.Agent{{Nick: "driver-1"}}})
-	a, _ = press(t, next.(App), "ctrl+t")
+	a, _ = press(t, next.(App), "ctrl+o")
 	a = typeText(t, a, "@dri")
 	a, _ = press(t, a, "enter")
 	if a.pick || a.mode != Insert || a.in.Value() != "@driver-1 " || cur(a) != "#a" {
 		t.Fatalf("nick pick: mode %v input %q cur %s", a.mode, a.in.Value(), cur(a))
 	}
-	a, _ = press(t, a, "esc", "ctrl+t")
+	a, _ = press(t, a, "esc", "ctrl+o")
 	a = typeText(t, a, "#b")
 	a, _ = press(t, a, "enter")
 	if cur(a) != "#b" { // control: channels still work
@@ -621,7 +621,7 @@ func TestSameAgentNameInTwoSessions(t *testing.T) {
 	if got := candidates("@driver", a.chanNames(), a.nickPool()); strings.Join(got, ",") != "@driver-1,@driver-1@a,@driver-1@b" {
 		t.Fatalf("completion %q", got) // own plain first; other sessions only qualified
 	}
-	a, _ = press(t, a, "ctrl+t")
+	a, _ = press(t, a, "ctrl+o")
 	var at []string
 	for _, s := range a.pickSource() {
 		if strings.HasPrefix(s, "@driver") {

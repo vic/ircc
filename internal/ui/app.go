@@ -106,8 +106,8 @@ type App struct {
 	fq       string          // query typed in a focused side pane (fuzzy filter)
 	fsel     int             // selected row in the focused side pane
 	stamps   bool            // s: show "15:04 " before each line
-	pick     bool            // ctrl+t or /: the picker is open
-	pickWhat pickKind        // what the picker lists: channels (ctrl+t), lines (/), speakers (S)
+	pick     bool            // ctrl+o or /: the picker is open
+	pickWhat pickKind        // what the picker lists: channels (ctrl+o), lines (/), speakers (S)
 	speaker  string          // S: show only this nick's lines; "" all
 	resumeTo string          // channel to focus once it shows up (the last one of the previous run)
 	toasts   []toast         // notification cards, newest last; the tick drops old ones
@@ -507,7 +507,7 @@ func (a App) inputLine() (label, input, hint string) {
 		if u := a.cmdUsage(); u != "" { // typing a /command: its usage is the hint (vic 2026-10-23)
 			return "INSERT", prompt + withCursor(a.in.Value(), a.in.Position()), u
 		}
-		hint := keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "pick", "esc", "normal")
+		hint := keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-o", "pick", "esc", "normal")
 		if a.quote != nil { // the replied-to line is shown here, not in the input
 			hint = keyHint("re", "<"+a.quote.Nick+"> "+a.quote.Text) + "   " + hint
 		}
@@ -517,7 +517,7 @@ func (a App) inputLine() (label, input, hint string) {
 	case a.focus == focusNicks:
 		return "NICKS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "mention", "tab", "chat", "esc", "chat")
 	}
-	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "pick", "i", "type", "?", "help", "$", "shell")
+	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-o", "pick", "i", "type", "?", "help", "$", "shell")
 }
 
 // footer is the last row outside INSERT: more keys and the toggle states, since
@@ -727,7 +727,7 @@ func (a App) chanNames() []string {
 type pickKind uint8
 
 const (
-	pickChans    pickKind = iota // ctrl+t: channels and @nicks
+	pickChans    pickKind = iota // ctrl+o: channels and @nicks
 	pickLines                    // /: the current channel's shown lines; enter jumps
 	pickSpeakers                 // S: who spoke here; enter shows only that nick (vic 2026-10-23)
 	pickInvite                   // I: who can be invited to this room; enter invites (vic 2026-10-23)

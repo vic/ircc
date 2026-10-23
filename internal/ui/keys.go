@@ -66,7 +66,7 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{}, Normal, ""
 		case "enter":
 			return Action{Kind: Send}, Insert, ""
-		case "ctrl+t":
+		case "ctrl+o":
 			return Action{Kind: PickChan}, Insert, ""
 		case "up":
 			return Action{Kind: LineUp}, Insert, ""
@@ -99,7 +99,7 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{HalfPage, -1}, Normal, ""
 		case "G":
 			return Action{Kind: Bottom}, Normal, ""
-		case "ctrl+t":
+		case "ctrl+o":
 			return Action{Kind: PickChan}, Normal, ""
 		case "S":
 			return Action{Kind: PickSpeaker}, Normal, ""
