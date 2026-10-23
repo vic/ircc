@@ -250,6 +250,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.stamps, a.offs = !a.stamps, nil // row counts changed
 	case PickChan:
 		return a.openPick(false), nil
+	case NextTurn, PrevTurn:
+		a = a.turn(act.Kind == NextTurn)
 	case LastChan:
 		a = a.focusName(a.prev)
 	case NextChan, PrevChan, GotoChan:
@@ -728,4 +730,29 @@ func (a App) pidOf(nick string) int {
 		}
 	}
 	return 0
+}
+
+// turn moves the cursor (the reversed line) to the next (fwd) or previous start of a
+// speaker run: the first line whose nick differs from the line before it. With no
+// cursor, fwd starts from the oldest line and back from the newest.
+func (a App) turn(fwd bool) App {
+	ls := a.lines(a.m.Current())
+	start := func(i int) bool { return i == 0 || ls[i].Nick != ls[i-1].Nick }
+	i, step := a.hit, 1
+	if !fwd {
+		step = -1
+	}
+	if i < 0 || i >= len(ls) {
+		i = len(ls)
+		if fwd {
+			i = -1
+		}
+	}
+	for j := i + step; j >= 0 && j < len(ls); j += step {
+		if start(j) {
+			a.hit = j
+			return a.showHit()
+		}
+	}
+	return a
 }

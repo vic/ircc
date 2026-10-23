@@ -356,6 +356,8 @@ var helpSections = []struct {
 		{"tab", "back to the previous channel"},
 		{"ctrl+t", "fuzzy channel picker"},
 		{"wheel j k", "scroll"},
+		{"J K", "next / previous speaker change"},
+		{"shift+drag", "select text (the terminal does it; ircc takes plain drags)"},
 		{"ctrl+d ctrl+u", "half page down / up"},
 		{"gg G", "top / bottom"},
 		{"/ n N", "search, next hit, previous hit"},

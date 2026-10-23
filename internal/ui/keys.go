@@ -33,6 +33,8 @@ const (
 	ToggleTools
 	ToggleMentions
 	LastChan
+	NextTurn
+	PrevTurn
 	ToggleStamps
 	PickChan
 	ReplyMention
@@ -90,6 +92,10 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: NextChan}, Normal, ""
 		case "ctrl+p", "up":
 			return Action{Kind: PrevChan}, Normal, ""
+		case "J":
+			return Action{Kind: NextTurn}, Normal, ""
+		case "K":
+			return Action{Kind: PrevTurn}, Normal, ""
 		case "tab":
 			return Action{Kind: LastChan}, Normal, ""
 		case "s":

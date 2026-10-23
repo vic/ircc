@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -436,5 +437,31 @@ func TestAgentsInPane(t *testing.T) {
 	a, _ = press(t, a, "tab")
 	if a.in.Value() != "ask @driver-1" {
 		t.Fatalf("complete %q", a.in.Value())
+	}
+}
+
+func TestSpeakerJumps(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	for _, n := range []string{"vic", "vic", "vic", "x", "vic"} {
+		next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: n, Text: "t"}})
+		a = next.(App)
+	}
+	var at []int
+	for _, k := range []string{"J", "J", "J", "J", "K", "K"} {
+		a, _ = press(t, a, k)
+		at = append(at, a.hit)
+	}
+	if fmt.Sprint(at) != "[0 3 4 4 3 0]" { // run starts 0 (vic) 3 (x) 4 (vic); NEG: stops at the ends
+		t.Fatalf("hits %v", at)
+	}
+	var log2 []sent
+	b := newApp(t, &log2, nil)
+	for _, n := range []string{"vic", "x", "x"} {
+		next, _ := b.Update(LineMsg{Ch: "#a", L: model.Line{Nick: n, Text: "t"}})
+		b = next.(App)
+	}
+	if b, _ = press(t, b, "K"); b.hit != 1 { // no cursor: K starts from the newest
+		t.Fatalf("K from bottom: %d", b.hit)
 	}
 }
