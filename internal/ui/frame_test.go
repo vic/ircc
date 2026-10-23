@@ -113,7 +113,7 @@ func TestWheelScrollsAndNickPane(t *testing.T) {
 			t.Fatalf("%s nicks %v", c.Name, got)
 		}
 	}
-	if v := ansi.Strip(next.(App).screen()); !strings.Contains(v, " vic") {
+	if v := ansi.Strip(next.(App).screen()); !strings.Contains(v, "💤vic") {
 		t.Fatal("nick pane empty in View")
 	}
 }
@@ -410,23 +410,23 @@ func TestMarkdownColors(t *testing.T) {
 
 func TestBusyMarks(t *testing.T) {
 	var log []sent
-	a := newApp(t, &log, nil)                                   // #a pid 1, user "me"
-	if got := strings.Join(a.paneNicks(), ","); got != "me,a" { // control: idle, not typing
+	a := newApp(t, &log, nil)                                     // #a pid 1, user "me"
+	if got := strings.Join(a.paneNicks(), ","); got != "💤me,💤a" { // control: idle, not typing
 		t.Fatalf("idle %q", got)
 	}
 	next, _ := a.Update(InfoMsg{1: {Status: "busy"}})
 	a, _ = press(t, next.(App), "i", "x")
-	if got := strings.Join(a.paneNicks(), ","); got != "…me,…a" {
+	if got := strings.Join(a.paneNicks(), ","); got != "💬me,⌛a" {
 		t.Fatalf("busy+typing %q", got)
 	}
-	if !strings.Contains(ansi.Strip(a.screen()), "…a") {
+	if !strings.Contains(ansi.Strip(a.screen()), "⌛a") {
 		t.Fatal("mark not on screen")
 	}
 	next, _ = a.Update(RoomsMsg{"&r"})
 	next, _ = next.(App).Update(MembersMsg{Ch: "&r", Nicks: []string{"lib1"}})
 	a = next.(App).focusName("&r")
 	a.m, _ = a.m.WithRoomMembers("&r", []model.Member{{Nick: "a"}, {Nick: "x@a"}, {Nick: "b"}}) // no PIDs, as at runtime
-	if got := strings.Join(a.paneNicks(), ","); got != "…me,…a,…x@a,b" {                        // NEG: b (pid 2) is idle
+	if got := strings.Join(a.paneNicks(), ","); got != "💬me,⌛a,⌛x@a,💤b" {                       // NEG: b (pid 2) is idle
 		t.Fatalf("room %q", got)
 	}
 }
@@ -436,7 +436,7 @@ func TestAgentsInPane(t *testing.T) {
 	a := newApp(t, &log, nil)
 	next, _ := a.Update(AgentsMsg{Ch: "#a", Agents: []model.Agent{{Nick: "driver-1", Busy: true}, {Nick: "scribe-1"}}})
 	a = next.(App)
-	if got := strings.Join(a.paneNicks(), ","); got != "me,a,…driver-1,scribe-1" {
+	if got := strings.Join(a.paneNicks(), ","); got != "💤me,💤a,⌛driver-1,💤scribe-1" {
 		t.Fatalf("pane %q", got)
 	}
 	next, _ = a.Update(AgentsMsg{Ch: "&nope", Agents: []model.Agent{{Nick: "x"}}}) // NEG: unknown channel ignored
@@ -472,4 +472,23 @@ func TestSpeakerJumps(t *testing.T) {
 	if b, _ = press(t, b, "K"); b.hit != 1 { // no cursor: K starts from the newest
 		t.Fatalf("K from bottom: %d", b.hit)
 	}
+}
+
+func TestFocusBorder(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	hl := focusBorder.Render("│")
+	row := func(a App) string { return strings.Split(a.screen(), "\n")[1] }
+	if r := row(a); strings.HasPrefix(r, hl) || !strings.Contains(r, hl) { // chat: middle borders only
+		t.Fatalf("chat row %q", r)
+	}
+	a, _ = press(t, a, "tab")
+	if r := row(a); !strings.HasPrefix(r, hl) || strings.HasSuffix(r, hl) { // channels: left edge, NEG: not the right edge
+		t.Fatalf("channels row %q", r)
+	}
+	a, _ = press(t, a, "tab")
+	if r := row(a); strings.HasPrefix(r, hl) || !strings.HasSuffix(r, hl) {
+		t.Fatalf("nicks row %q", r)
+	}
+	checkFrame(t, a, a.w, a.h)
 }

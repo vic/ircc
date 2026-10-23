@@ -382,7 +382,7 @@ func (a App) inputLine() (label, input, hint string) {
 	case a.prompt == promptCmd:
 		return "NORMAL", ":" + a.in.Value(), keyHint("enter", "send as is", "esc", "cancel")
 	case a.mode == Insert:
-		return "INSERT", a.in.Value(), keyHint("enter", "send", "tab", "complete", "↑↓", "channel", "esc", "normal")
+		return "INSERT", a.in.Value(), keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "channel", "C-t", "pick", "esc", "normal")
 	case a.focus == focusChans:
 		return "CHANNELS", "", keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "join", "tab", "nicks", "esc", "chat")
 	case a.focus == focusNicks:
@@ -697,32 +697,41 @@ func (a App) lastMention() string {
 	return ""
 }
 
-// busyMark goes before a nick in the nick pane while it works: a session the
-// registry reports busy, or you while your INSERT line has text (vic 2026-10-22).
-const busyMark = "…"
+// Status marks before each nick in the nick pane (vic 2026-10-23). All are wide
+// (2 cells) emoji with no variation selector, so widths stay exact.
+const (
+	busyMark   = "⌛" // working: registry busy, or a subagent mid-turn
+	typingMark = "💬" // you, while your INSERT line has text
+	idleMark   = "💤" // idle, or not live
+)
 
-// paneNicks is chanNicks with the busy marks.
+// statusMarks lists every mark, for the view to split it from the nick.
+var statusMarks = []string{busyMark, typingMark, idleMark}
+
+// paneNicks is chanNicks with a status mark before each nick.
 func (a App) paneNicks() []string {
 	cur := a.m.Current()
 	out := chanNicks(cur, a.user)
 	busy := func(pid int) bool { return a.info[pid].Status == "busy" }
+	mark := func(b bool) string {
+		if b {
+			return busyMark
+		}
+		return idleMark
+	}
+	out[0] = mark(false) + out[0]
 	if a.mode == Insert && a.in.Value() != "" {
-		out[0] = busyMark + out[0]
+		out[0] = typingMark + chanNicks(cur, a.user)[0]
 	}
 	for i := 1; i < len(out); i++ {
 		switch {
 		case cur.Kind == model.RoomChan:
-			if !busy(a.pidOf(cur.Members[i-1].Nick)) {
-				continue
-			}
+			out[i] = mark(busy(a.pidOf(cur.Members[i-1].Nick))) + out[i]
 		case i == 1: // the main agent
-			if !busy(cur.PID) {
-				continue
-			}
-		case !cur.Agents[i-2].Busy:
-			continue
+			out[i] = mark(busy(cur.PID)) + out[i]
+		default:
+			out[i] = mark(cur.Agents[i-2].Busy) + out[i]
 		}
-		out[i] = busyMark + out[i]
 	}
 	return out
 }

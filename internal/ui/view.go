@@ -22,19 +22,20 @@ const (
 // Styles are named by role, one table; ANSI 16 colors only, so the terminal theme
 // picks the shades.
 var (
-	cell     = lipgloss.NewStyle().Inline(true)
-	dimmed   = fg("8")
-	border   = dimmed
-	faint    = dimmed
-	title    = fg("5").Bold(true)
-	shortcut = fg("5")
-	prompt   = fg("6").Bold(true)
-	unread   = fg("3").Bold(true)
-	roomName = fg("13")
-	alert    = fg("9").Bold(true)
-	current  = cell.Reverse(true)                                                               // search hit
-	selected = cell.Bold(true).Background(lipgloss.Color("8")).Foreground(lipgloss.Color("15")) // current channel
-	helpHead = fg("2").Bold(true)
+	cell        = lipgloss.NewStyle().Inline(true)
+	dimmed      = fg("8")
+	border      = dimmed
+	focusBorder = fg("13").Bold(true) // the pane that takes keys
+	faint       = dimmed
+	title       = fg("5").Bold(true)
+	shortcut    = fg("5")
+	prompt      = fg("6").Bold(true)
+	unread      = fg("3").Bold(true)
+	roomName    = fg("13")
+	alert       = fg("9").Bold(true)
+	current     = cell.Reverse(true)                                                               // search hit
+	selected    = cell.Bold(true).Background(lipgloss.Color("8")).Foreground(lipgloss.Color("15")) // current channel
+	helpHead    = fg("2").Bold(true)
 	// nickColors leaves out red (bypass) and gray (dim lines).
 	nickColors = []string{"2", "3", "4", "5", "6", "10", "11", "12", "13", "14"}
 )
@@ -95,12 +96,12 @@ func inputRows(input string, w, h int) []string {
 }
 
 // seg is a pane title in a top border: " title ───" filled to n columns.
-func seg(name string, n int) string {
+func seg(name string, n int, line lipgloss.Style) string {
 	t := " " + name + " "
 	if lipgloss.Width(t) >= n {
 		return fit(title, t, n)
 	}
-	return title.Render(t) + border.Render(strings.Repeat("─", n-lipgloss.Width(t)))
+	return title.Render(t) + line.Render(strings.Repeat("─", n-lipgloss.Width(t)))
 }
 
 // lineRow is scrollback row i in n columns: the search hit reversed, else the
@@ -197,14 +198,37 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 			chans = append(chans, byName[n])
 		}
 		mid := w - chanW - nickW - 4 // four border columns
-		b := border.Render
-		rows = append(rows, b("┌")+seg(p.title("channels", focusChans), chanW)+b("┬")+seg(cur.Name, mid)+b("┬")+seg(p.title("nicks", focusNicks), nickW)+b("┐"))
+		// The focused pane's borders are drawn in focusBorder (vic 2026-10-23). Pane k
+		// (0 channels, 1 chat, 2 nicks) owns vertical borders k and k+1 and segment k.
+		pane := 1
+		switch p.focus {
+		case focusChans:
+			pane = 0
+		case focusNicks:
+			pane = 2
+		}
+		edge := func(k int, s string) string { // vertical border k, or a corner on it
+			if k == pane || k == pane+1 {
+				return focusBorder.Render(s)
+			}
+			return border.Render(s)
+		}
+		line := func(k int) lipgloss.Style {
+			if k == pane {
+				return focusBorder
+			}
+			return border
+		}
+		rows = append(rows, edge(0, "┌")+seg(p.title("channels", focusChans), chanW, line(0))+edge(1, "┬")+
+			seg(cur.Name, mid, line(1))+edge(2, "┬")+seg(p.title("nicks", focusNicks), nickW, line(2))+edge(3, "┐"))
 		for i := 0; i < n; i++ {
 			nk := at(p.nicks, i)
 			if nk != "" { // an empty Render still emits escapes
 				mark, name := "", nk
-				if rest, ok := strings.CutPrefix(nk, busyMark); ok {
-					mark, name = dimmed.Render(busyMark), rest
+				for _, sm := range statusMarks {
+					if rest, ok := strings.CutPrefix(nk, sm); ok {
+						mark, name = sm, rest
+					}
 				}
 				nk = mark + nickStyle(name).Render(name)
 			}
@@ -215,10 +239,11 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 			if p.focus == focusNicks && i == p.sel && i < len(p.nicks) {
 				nc = fit(current, " "+p.nicks[i], nickW)
 			}
-			rows = append(rows, b("│")+cc+b("│")+lineRow(lines, of, shown, hit, i, mid, " ", code)+
-				b("│")+nc+b("│"))
+			rows = append(rows, edge(0, "│")+cc+edge(1, "│")+lineRow(lines, of, shown, hit, i, mid, " ", code)+
+				edge(2, "│")+nc+edge(3, "│"))
 		}
-		rows = append(rows, b("└"+strings.Repeat("─", chanW)+"┴"+strings.Repeat("─", mid)+"┴"+strings.Repeat("─", nickW)+"┘"))
+		rows = append(rows, edge(0, "└")+line(0).Render(strings.Repeat("─", chanW))+edge(1, "┴")+line(1).Render(strings.Repeat("─", mid))+
+			edge(2, "┴")+line(2).Render(strings.Repeat("─", nickW))+edge(3, "┘"))
 	}
 
 	left, lst := " ", cell
