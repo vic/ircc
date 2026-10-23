@@ -142,19 +142,25 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 	if s := stampRE.FindString(r); s != "" {
 		lead, r = lead+dimmed.Render(s), r[len(s):]
 	}
-	if of[i] == hit && strings.HasPrefix(lead, " ") { // the current message: a gutter bar in the lead column
-		lead = gutterBar + lead[1:]
+	// body: the text right of the nick column. The current message's bar takes the
+	// last leading space, the column just left of the text.
+	body := func(s string) string {
+		pad := len(s) - len(strings.TrimLeft(s, " "))
+		if of[i] != hit || pad == 0 {
+			return text(s)
+		}
+		return text(s[:pad-1]) + gutterBar + text(s[pad:])
 	}
 	nk := "<" + l.Nick + ">"
 	if after, ok := strings.CutPrefix(r, nk); ok {
 
 		if of[i] == hit { // the selected line: nick bold italic, its <> in the cursor color
 			br := fg("13").Bold(true).Italic(true)
-			return fit(cell, lead+br.Render("<")+nickStyle(l.Nick).Bold(true).Italic(true).Render(l.Nick)+br.Render(">")+text(after), n)
+			return fit(cell, lead+br.Render("<")+nickStyle(l.Nick).Bold(true).Italic(true).Render(l.Nick)+br.Render(">")+body(after), n)
 		}
-		return fit(cell, lead+nickStyle(l.Nick).Render(nk)+text(after), n)
+		return fit(cell, lead+nickStyle(l.Nick).Render(nk)+body(after), n)
 	}
-	return fit(cell, lead+text(r), n)
+	return fit(cell, lead+body(r), n)
 }
 
 // codeRows marks the rows inside a ``` block; the fence state restarts per line.

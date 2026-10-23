@@ -73,7 +73,7 @@ Start `ircc` in a terminal while one or more Claude sessions run.
   the lines you sent in this run. The history is not saved.
 - **Click:** a file path in a message opens in `$EDITOR`. A `code span` in a message
   fills the `:` prompt with `!` and the command.
-- **Current message:** the message you select has a bar in the left gutter.
+- **Current message:** the message you select has a bar just left of its text, after the nick.
 - **Notifications:** small cards at the bottom right, gone after 4 s: errors,
   hook errors, a goal that is met, and a session whose context filled up and was
   compacted.
