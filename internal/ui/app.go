@@ -260,6 +260,9 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case act.Kind == None:
 			var cmd tea.Cmd
 			a.in, cmd = a.in.Update(msg)
+			if a.in.Value() == "" { // deleting back to the start ends the reply
+				a.quote = nil
+			}
 			return a, cmd
 		case act.Kind == Scroll:
 			return a.scroll(act), nil
@@ -461,14 +464,18 @@ func (a App) inputLine() (label, input, hint string) {
 	case a.prompt == promptCmd:
 		return "NORMAL", ":" + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send as is", "esc", "cancel")
 	case a.mode == Insert:
+		prompt := "> "
+		if a.quote != nil { // RE: while replying; the quote is dropped once the input is empty
+			prompt = "RE: "
+		}
 		if u := a.cmdUsage(); u != "" { // typing a /command: its usage is the hint (vic 2026-10-23)
-			return "INSERT", "> " + withCursor(a.in.Value(), a.in.Position()), u
+			return "INSERT", prompt + withCursor(a.in.Value(), a.in.Position()), u
 		}
 		hint := keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "pick", "esc", "normal")
 		if a.quote != nil { // the replied-to line is shown here, not in the input
 			hint = keyHint("re", "<"+a.quote.Nick+"> "+a.quote.Text) + "   " + hint
 		}
-		return "INSERT", "> " + withCursor(a.in.Value(), a.in.Position()), hint
+		return "INSERT", prompt + withCursor(a.in.Value(), a.in.Position()), hint
 	case a.focus == focusChans:
 		return "CHANNELS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "join", "tab", "nicks", "esc", "chat")
 	case a.focus == focusNicks:

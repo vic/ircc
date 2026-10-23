@@ -836,3 +836,19 @@ func TestClickChannelAndNick(t *testing.T) {
 		t.Fatal("quote kept after send")
 	}
 }
+
+func TestReplyPromptUntilInputEmpty(t *testing.T) {
+	a := scrollApp(t)
+	next, _ := a.Update(tea.MouseClickMsg{X: 40, Y: 2, Button: tea.MouseLeft})
+	a = next.(App)
+	if _, in, _ := a.inputLine(); !strings.HasPrefix(in, "RE: ") {
+		t.Fatalf("reply prompt: %q", in)
+	}
+	a, _ = press(t, a, "backspace", "backspace", "backspace") // "@n " is 3 cells
+	if a.quote != nil {
+		t.Fatal("quote kept with empty input")
+	}
+	if _, in, _ := a.inputLine(); !strings.HasPrefix(in, "> ") {
+		t.Fatalf("prompt after clear: %q", in)
+	}
+}
