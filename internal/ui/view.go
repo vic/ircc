@@ -104,8 +104,9 @@ func seg(name string, n int) string {
 }
 
 // lineRow is scrollback row i in n columns: the search hit reversed, else the
-// nick in its color and dim or tool text gray.
-func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead string) string {
+// nick in its color, dim or tool text gray, chat text with markdown colors.
+// code[i]: the row is inside a ``` block of its line.
+func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead string, code []bool) string {
 	if i >= len(rows) {
 		return fit(cell, "", n)
 	}
@@ -113,18 +114,45 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 		return fit(current, lead+rows[i], n)
 	}
 	l, r := shown[of[i]], rows[i]
+	plain := l.Dim || l.Kind == model.Tool || l.Kind == model.Thinking
 	st := cell
-	if l.Dim || l.Kind == model.Tool {
+	if plain {
 		st = faint
+	}
+	text := func(s string) string {
+		if plain {
+			return mentions(s, st)
+		}
+		pad := len(s) - len(strings.TrimLeft(s, " ")) // indentation stays unstyled
+		return s[:pad] + markdown(s[pad:], st, code[i])
 	}
 	if s := stampRE.FindString(r); s != "" {
 		lead, r = lead+dimmed.Render(s), r[len(s):]
 	}
 	nk := "<" + l.Nick + ">"
 	if after, ok := strings.CutPrefix(r, nk); ok {
-		return fit(cell, lead+nickStyle(l.Nick).Render(nk)+mentions(after, st), n)
+
+		return fit(cell, lead+nickStyle(l.Nick).Render(nk)+text(after), n)
 	}
-	return fit(cell, lead+mentions(r, st), n)
+	return fit(cell, lead+text(r), n)
+}
+
+// codeRows marks the rows inside a ``` block; the fence state restarts per line.
+func codeRows(rows []string, of []int, shown []model.Line) []bool {
+	out := make([]bool, len(rows))
+	in := false
+	for i, r := range rows {
+		if i == 0 || of[i] != of[i-1] {
+			in = false
+		}
+		r = strings.TrimPrefix(r[len(stampRE.FindString(r)):], "<"+shown[of[i]].Nick+">")
+		if fenced(r) {
+			in = !in
+			continue
+		}
+		out[i] = in
+	}
+	return out
 }
 
 // View renders the box layout of DESIGN D:290-299: channels, lines and nicks
@@ -147,12 +175,13 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 	ir := append(sugg, inputRows(input, w, h)...) // the suggestion row sits right above the input
 	n := paneRows(w, h, len(ir))
 	lines, of := tailRows(shown, n, off, textWidth(w, h), wrap)
+	code := codeRows(lines, of, shown)
 
 	var rows []string
 	if !wide(w, h) {
 		rows = append(rows, fit(title, cur.Name, w))
 		for i := 0; i < n; i++ {
-			rows = append(rows, lineRow(lines, of, shown, hit, i, w, ""))
+			rows = append(rows, lineRow(lines, of, shown, hit, i, w, "", code))
 		}
 	} else {
 		chans := m.Channels()
@@ -164,7 +193,7 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 			if nk != "" { // an empty Render still emits escapes
 				nk = nickStyle(nk).Render(nk)
 			}
-			rows = append(rows, b("│")+chanCell(chans, cur.Name, i)+b("│")+lineRow(lines, of, shown, hit, i, mid, " ")+
+			rows = append(rows, b("│")+chanCell(chans, cur.Name, i)+b("│")+lineRow(lines, of, shown, hit, i, mid, " ", code)+
 				b("│")+fit(cell, " "+nk, nickW)+b("│"))
 		}
 		rows = append(rows, b("└"+strings.Repeat("─", chanW)+"┴"+strings.Repeat("─", mid)+"┴"+strings.Repeat("─", nickW)+"┘"))

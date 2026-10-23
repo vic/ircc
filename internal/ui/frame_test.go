@@ -396,3 +396,23 @@ func TestThinkingToggle(t *testing.T) {
 		t.Fatal("thinking shown in mentions mode")
 	}
 }
+
+func TestMarkdownColors(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	txt := "# Plan\n- run `go test` **now**\n```\nfmt.Println(1)\n```\nsee *this* and snake_case_name"
+	next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "bob", Text: txt}})
+	a = next.(App)
+	v := checkFrame(t, a, 80, 24)
+	for _, want := range []string{title.Render("# Plan"), codeSt.Render("go test"), cell.Bold(true).Render("now"), codeSt.Render("fmt.Println(1)"), cell.Italic(true).Render("this"), shortcut.Render("-")} {
+		if !strings.Contains(v, want) {
+			t.Errorf("missing styled %q", ansi.Strip(want))
+		}
+	}
+	if strings.Contains(v, cell.Italic(true).Render("case")) { // NEG: snake_case is not emphasis
+		t.Error("snake_case styled as italic")
+	}
+	if s := ansi.Strip(v); !strings.Contains(s, "- run `go test` **now**") || !strings.Contains(s, "snake_case_name") {
+		t.Fatalf("text changed:\n%s", s)
+	}
+}
