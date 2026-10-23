@@ -42,7 +42,7 @@ Press `?` for all keys. Other useful keys:
 | s          | show or hide times (`15:04`)          |
 | :          | send a line as is to the session, for example `/compact` |
 | t          | show or hide tool lines (`* Bash: …`) |
-| c          | chat only, or all lines               |
+| m          | mentions only (direct lines), or all lines |
 | /          | search                                |
 
 Commands (tab completes commands, channels and nicks): `/join`, `/part`, `/rm` (=`/close`),
@@ -84,13 +84,13 @@ room is saved, so `&handson` comes back the next time you start ircc.
 A Claude session shows a lot: every tool call, every file it reads, every command
 it runs. That is too much to follow when you only want to know where the work is.
 
-Watch the session in its `#` channel in ircc instead. Press `c` for chat only: the
+Watch the session in its `#` channel in ircc instead. Press `m` for mentions only: the
 channel then shows your lines and the replies the agent sends you, the high-level
 messages it writes when it has something important for you. Ask the agent to report
 to you when it has results.
 
 When you need the details, press `t` to show the tool lines (`* Bash: go test ./...`),
-press `c` again for all lines, or switch to the Claude session itself.
+press `m` again for all lines, or switch to the Claude session itself.
 
 ## Files
 

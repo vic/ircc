@@ -63,30 +63,30 @@ const (
 // App is the bubbletea model: keys.go decides, App applies. No sockets here;
 // sending goes through the injected send func.
 type App struct {
-	m       model.Model
-	mode    EditMode
-	pending string
-	in      textinput.Model
-	send    func(ch, text string) error
-	cmdf    func(ch string, c model.Cmd) tea.Cmd // runs a parsed command; ch is the focused channel
-	literal func(ch, text string) error          // the : prompt: text as is to the session socket
-	user    string                               // nick of the local echo line
-	info    map[int]model.SessionInfo
-	now     func() time.Time
-	w, h    int
-	prompt  rune // 0, promptCmd or promptSearch: the input line holds a prompt
-	query   string
-	hit     int             // index in the current channel of the last search hit, -1 none
-	offs    map[string]int  // per channel: lines scrolled back from the newest
-	help    bool            // the ? popup is shown; the next key closes it
-	prev    string          // channel focused before the current one; tab returns to it
-	stamps  bool            // s: show "15:04 " before each line
-	pick    bool            // ctrl+t: the channel picker is open
-	pq      textinput.Model // picker query (own input: a typed message survives)
-	psel    int             // picker selection, an index in pickList
-	comp    completion      // tab completion state of the INSERT line
-	tools   bool            // t: show tool lines
-	chat    bool            // c: show only Chat lines (replies, rooms, own lines)
+	m        model.Model
+	mode     EditMode
+	pending  string
+	in       textinput.Model
+	send     func(ch, text string) error
+	cmdf     func(ch string, c model.Cmd) tea.Cmd // runs a parsed command; ch is the focused channel
+	literal  func(ch, text string) error          // the : prompt: text as is to the session socket
+	user     string                               // nick of the local echo line
+	info     map[int]model.SessionInfo
+	now      func() time.Time
+	w, h     int
+	prompt   rune // 0, promptCmd or promptSearch: the input line holds a prompt
+	query    string
+	hit      int             // index in the current channel of the last search hit, -1 none
+	offs     map[string]int  // per channel: lines scrolled back from the newest
+	help     bool            // the ? popup is shown; the next key closes it
+	prev     string          // channel focused before the current one; tab returns to it
+	stamps   bool            // s: show "15:04 " before each line
+	pick     bool            // ctrl+t: the channel picker is open
+	pq       textinput.Model // picker query (own input: a typed message survives)
+	psel     int             // picker selection, an index in pickList
+	comp     completion      // tab completion state of the INSERT line
+	tools    bool            // t: show tool lines
+	mentions bool            // m: show only direct lines (see shows)
 }
 
 // New returns an App over m that sends channel text through send.
@@ -217,15 +217,21 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if mode == Insert {
 		a.mode = Insert
 		a.in.Focus()
+		if act.Kind == ReplyMention {
+			if n := a.lastMention(); n != "" {
+				a.in.SetValue("@" + n + " ")
+				a.in.CursorEnd()
+			}
+		}
 	}
 	switch act.Kind {
 	case CmdLine:
 		return a.openPrompt(promptCmd), nil
 	case Scroll, HalfPage, Top, Bottom:
 		a = a.scroll(act)
-	case ToggleTools, ToggleChat:
+	case ToggleTools, ToggleMentions:
 		a.tools = a.tools != (act.Kind == ToggleTools)
-		a.chat = a.chat != (act.Kind == ToggleChat)
+		a.mentions = a.mentions != (act.Kind == ToggleMentions)
 		a.hit, a.offs = -1, nil // positions index the shown lines, which changed
 	case Help:
 		a.help = true
@@ -356,17 +362,19 @@ func (a App) note(text string) App {
 	return a
 }
 
-// inputLine is the modeline label and the input row text for the current mode.
-func (a App) inputLine() (label, input string) {
+// inputLine is the modeline label, the input row text and the key hints the
+// modeline shows for the current mode.
+func (a App) inputLine() (label, input, hint string) {
 	switch {
+	case a.prompt == promptCmd:
+		return "NORMAL", ":" + a.in.Value(), keyHint("enter", "send as is", "esc", "cancel")
 	case a.prompt != 0:
-		return "NORMAL", string(a.prompt) + a.in.Value()
+		return "NORMAL", string(a.prompt) + a.in.Value(), keyHint("enter", "find", "n N", "next prev", "esc", "cancel")
 	case a.mode == Insert:
-		return "INSERT", a.in.Value()
+		return "INSERT", a.in.Value(), keyHint("enter", "send", "tab", "complete", "↑↓", "channel", "esc", "normal")
 	}
-	// one row only: a hint never takes rows from the lines pane; most useful keys first
-	return "NORMAL", fit(cell, keyHint("C-n/C-p ↑↓", "channel", "tab", "last", "C-t", "pick", "i", "type", ":", "literal", "?", "help",
-		"t", "tools:"+onOff(a.tools), "c", "chat:"+onOff(a.chat), "s", "time:"+onOff(a.stamps)), max(a.w-2, 1))
+	return "NORMAL", "", keyHint("↑↓", "channel", "tab", "last", "C-t", "pick", "i", "type", ":", "literal", "?", "help",
+		"t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps))
 }
 
 // View is the full-screen frame; screen is its text.
@@ -384,13 +392,13 @@ func (a App) screen() string {
 	if a.pick {
 		return pickView(a.w, a.h, a.pq.Value(), pickList(a.chanNames(), a.pq.Value()), a.psel)
 	}
-	label, input := a.inputLine()
-	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, chanNicks(a.m.Current(), a.user), a.lines(a.m.Current()), a.wrap(), a.suggest())
+	label, input, hint := a.inputLine()
+	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, chanNicks(a.m.Current(), a.user), a.lines(a.m.Current()), a.wrap(), a.suggest(), hint)
 }
 
 // page is the number of scrollback rows View shows; a long input takes rows from it.
 func (a App) page() int {
-	_, input := a.inputLine()
+	_, input, _ := a.inputLine()
 	return paneRows(a.w, a.h, len(inputRows(input, a.w, a.h))+len(a.suggest()))
 }
 
@@ -457,7 +465,7 @@ func (a App) addLine(ch string, l model.Line) (App, error) {
 		return a, err
 	}
 	a.m = m
-	if a.offs[ch] > 0 && a.shows(l) {
+	if a.offs[ch] > 0 && a.shows(chanKind(ch), l) {
 		a = a.setOff(ch, a.offs[ch]+len(a.wrap()(l, textWidth(a.w, a.h))))
 	}
 	return a, nil
@@ -476,16 +484,37 @@ func (a App) WithCmd(f func(ch string, c model.Cmd) tea.Cmd) App {
 	return a
 }
 
-// shows reports whether l passes the t and c toggles.
-func (a App) shows(l model.Line) bool {
-	return (a.tools || l.Kind != model.Tool) && (!a.chat || l.Kind == model.Chat)
+// shows reports whether l, in a channel of kind k, passes the t and m toggles.
+// m (mentions) keeps direct lines only: in a # channel the Chat lines (replies to
+// you, your lines), in a & room only lines that @mention you or are yours.
+func (a App) shows(k model.ChanKind, l model.Line) bool {
+	if !a.tools && l.Kind == model.Tool {
+		return false
+	}
+	if !a.mentions {
+		return true
+	}
+	if k == model.RoomChan {
+		return l.Nick == a.user || mentionsUser(l.Text, a.user)
+	}
+	return l.Kind == model.Chat
+}
+
+// mentionsUser reports whether text has @user as a whole mention.
+func mentionsUser(text, user string) bool {
+	for _, m := range mentionRE.FindAllString(text, -1) {
+		if m[1:] == user {
+			return true
+		}
+	}
+	return false
 }
 
 // lines is the part of c's scrollback the toggles show; render, scroll and search all use it.
 func (a App) lines(c model.Channel) []model.Line {
 	var out []model.Line
 	for _, l := range c.Lines.All() {
-		if a.shows(l) {
+		if a.shows(c.Kind, l) {
 			out = append(out, l)
 		}
 	}
@@ -594,4 +623,27 @@ func (a App) suggest() []string {
 		parts = append(parts, shortcut.Bold(true).Render(c[:len(word)])+st.Render(c[len(word):]))
 	}
 	return []string{fit(cell, dimmed.Render("tab ")+strings.Join(parts, "  "), max(a.w, 1))}
+}
+
+// chanKind is the kind a channel name has: & rooms, else # sessions.
+func chanKind(name string) model.ChanKind {
+	if strings.HasPrefix(name, "&") {
+		return model.RoomChan
+	}
+	return model.SessionChan
+}
+
+// lastMention is the newest @nick in the current channel's shown lines that is
+// not the user ("" if none); O starts a reply to it.
+func (a App) lastMention() string {
+	ls := a.lines(a.m.Current())
+	for i := len(ls) - 1; i >= 0; i-- {
+		ms := mentionRE.FindAllString(ls[i].Text, -1)
+		for j := len(ms) - 1; j >= 0; j-- {
+			if n := ms[j][1:]; n != a.user {
+				return n
+			}
+		}
+	}
+	return ""
 }

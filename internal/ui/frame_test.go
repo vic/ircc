@@ -138,9 +138,9 @@ func TestToggles(t *testing.T) {
 	if got := shown(); got != "hi|thinking out loud|* Bash: ls" || !strings.Contains(a.screen(), "* Bash: ls") {
 		t.Fatalf("t %q", got)
 	}
-	a, _ = press(t, a, "c")
+	a, _ = press(t, a, "m")
 	if got := shown(); got != "hi" || strings.Contains(a.screen(), "thinking out loud") {
-		t.Fatalf("c %q", got)
+		t.Fatalf("m %q", got)
 	}
 	a, _ = press(t, a, "g", "t") // NEG: gt still switches channel, does not toggle
 	if cur(a) != "#b" || !a.tools {
@@ -299,4 +299,49 @@ func TestTabCompletion(t *testing.T) {
 		t.Fatalf("channel cycle: %q then %q", first, a.in.Value())
 	}
 	checkFrame(t, a, 80, 24)
+}
+
+func TestMentionsInRooms(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	a.user = "vic"
+	next, _ := a.Update(RoomsMsg{"&r"})
+	a = next.(App)
+	for _, l := range []model.Line{{Nick: "lib1", Text: "public note"}, {Nick: "lib2", Text: "@vic look"}, {Nick: "vic", Text: "mine"}, {Nick: "x", Text: "@vicky no"}} {
+		next, _ = a.Update(LineMsg{Ch: "&r", L: l})
+		a = next.(App)
+	}
+	a, _ = press(t, a, "m")
+	var got []string
+	for _, c := range a.m.Channels() {
+		if c.Name == "&r" {
+			for _, l := range a.lines(c) {
+				got = append(got, l.Text)
+			}
+		}
+	}
+	if strings.Join(got, "|") != "@vic look|mine" { // NEG: @vicky is not @vic
+		t.Fatalf("mentions %q", got)
+	}
+}
+
+func TestInsertKeys(t *testing.T) {
+	for _, k := range []string{"i", "I", "a", "A", "o", "O"} {
+		var log []sent
+		a, _ := press(t, newApp(t, &log, nil), k)
+		if a.mode != Insert || a.in.Value() != "" { // O with no mention: plain insert
+			t.Errorf("%s: mode %v input %q", k, a.mode, a.in.Value())
+		}
+	}
+	var log []sent
+	a := newApp(t, &log, nil)
+	a.user = "vic"
+	for _, txt := range []string{"ask @lib1", "@lib2 and @vic please"} {
+		next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "x", Text: txt}})
+		a = next.(App)
+	}
+	a, _ = press(t, a, "O")
+	if a.in.Value() != "@lib2 " { // newest mention that is not the user
+		t.Fatalf("O: %q", a.in.Value())
+	}
 }

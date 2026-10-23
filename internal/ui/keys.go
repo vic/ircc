@@ -31,10 +31,11 @@ const (
 	Complete
 	Help
 	ToggleTools
-	ToggleChat
+	ToggleMentions
 	LastChan
 	ToggleStamps
 	PickChan
+	ReplyMention
 )
 
 // maxCountDigits bounds the {n} in {n}gt.
@@ -69,8 +70,10 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 	}
 	if pending == "" {
 		switch k {
-		case "i", "a":
+		case "i", "I", "a", "A", "o":
 			return Action{}, Insert, ""
+		case "O":
+			return Action{Kind: ReplyMention}, Insert, ""
 		case "j":
 			return Action{Scroll, 1}, Normal, ""
 		case "k":
@@ -93,8 +96,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: ToggleStamps}, Normal, ""
 		case "t":
 			return Action{Kind: ToggleTools}, Normal, ""
-		case "c":
-			return Action{Kind: ToggleChat}, Normal, ""
+		case "m":
+			return Action{Kind: ToggleMentions}, Normal, ""
 		case "?":
 			return Action{Kind: Help}, Normal, ""
 		case ":":

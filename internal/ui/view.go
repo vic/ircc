@@ -135,11 +135,11 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 // Channel markers: ● current, ○ gone, else the unread count.
 func View(m model.Model, ml model.Modeline, input string, w, h, off, hit int) string {
 	cur := m.Current()
-	return render(m, ml, input, w, h, off, hit, memberNicks(cur), cur.Lines.All(), wrapLine, nil)
+	return render(m, ml, input, w, h, off, hit, memberNicks(cur), cur.Lines.All(), wrapLine, nil, "")
 }
 
 // render is View with the nick pane given as nicks and the shown lines of the current channel.
-func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, nicks []string, shown []model.Line, wrap wrapFunc, sugg []string) string {
+func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, nicks []string, shown []model.Line, wrap wrapFunc, sugg []string, hint string) string {
 	if w < 1 || h < 3 {
 		return ""
 	}
@@ -178,6 +178,9 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 		lst = alert
 	}
 	left += lst.Render(ml.Left)
+	if hint != "" { // keys for this mode, between the status and the clock (vic 2026-10-22)
+		left += "   " + hint
+	}
 	right := dimmed.Render(ml.Right + " ")
 	rows = append(rows, fit(cell, fit(cell, left, max(w-lipgloss.Width(right), 0))+right, w))
 	for _, r := range ir {
@@ -318,10 +321,11 @@ var helpSections = []struct {
 		{"ctrl+d ctrl+u", "half page down / up"},
 		{"gg G", "top / bottom"},
 		{"/ n N", "search, next hit, previous hit"},
-		{"i a", "type a message"},
+		{"i I a A o", "type a message"},
+		{"O", "type a reply to the last @mentioned nick"},
 		{":", "send a line as is to the session (e.g. /compact)"},
 		{"t", "show / hide tool lines"},
-		{"c", "chat only / all lines"},
+		{"m", "mentions only (direct lines) / all lines"},
 		{"s", "show / hide times (15:04)"},
 	}},
 	{"INSERT", [][2]string{
