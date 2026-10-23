@@ -852,3 +852,13 @@ func TestReplyPromptUntilInputEmpty(t *testing.T) {
 		t.Fatalf("prompt after clear: %q", in)
 	}
 }
+
+func TestNormalEscClearsSelectionAndInput(t *testing.T) {
+	a := scrollApp(t)
+	a, _ = press(t, a, "A") // selects the last line, replies to it
+	a, _ = press(t, a, "esc")
+	a, _ = press(t, a, "esc") // NORMAL esc: nothing selected, input empty, no reply
+	if a.hit != -1 || a.in.Value() != "" || a.quote != nil || a.mode != Normal {
+		t.Fatalf("hit %d input %q quote %v mode %v", a.hit, a.in.Value(), a.quote, a.mode)
+	}
+}

@@ -287,6 +287,10 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return a.openPick(pickLines), nil
 		case "n", "N":
 			return a.searchStep(k == "N"), nil
+		case "esc": // NORMAL esc clears the selected line, the input text and the reply
+			a.hit, a.quote = -1, nil
+			a.in.Reset()
+			return a, nil
 		}
 	}
 	act, mode, pending := Key(Normal, a.pending, k)
