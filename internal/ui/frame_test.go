@@ -378,3 +378,21 @@ func TestMultilineKeepsLayout(t *testing.T) {
 		}
 	}
 }
+
+func TestThinkingToggle(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "a", Text: "pondering", Dim: true, Kind: model.Thinking}})
+	a = next.(App)
+	if strings.Contains(ansi.Strip(a.screen()), "pondering") {
+		t.Fatal("thinking shown by default")
+	}
+	a, _ = press(t, a, "T")
+	if !strings.Contains(ansi.Strip(a.screen()), "pondering") {
+		t.Fatal("T did not show thinking")
+	}
+	a, _ = press(t, a, "m") // NEG: mentions hides it again
+	if strings.Contains(ansi.Strip(a.screen()), "pondering") {
+		t.Fatal("thinking shown in mentions mode")
+	}
+}

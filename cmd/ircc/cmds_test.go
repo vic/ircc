@@ -202,7 +202,6 @@ func TestCmdNegatives(t *testing.T) {
 		{"kick in # channel", "#a", "/kick dave", "&"},
 		{"names in # channel", "#a", "/names", "&"},
 		{"mode unsupported", "#a", "/mode bypass", "GAP-10"},
-		{"thinking unsupported", "#a", "/thinking on", "GAP-10"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newCmdFix(t)

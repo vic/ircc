@@ -81,6 +81,7 @@ type App struct {
 	help      bool            // the ? popup is shown; the next key closes it
 	prev      string          // channel focused before the current one; tab returns to it
 	stamps    bool            // s: show "15:04 " before each line
+	thinking  bool            // T: show thinking lines
 	pick      bool            // ctrl+t or /: the picker is open
 	pickLines bool            // the picker searches lines (/), not channels (ctrl+t)
 	pq        textinput.Model // picker query (own input: a typed message survives)
@@ -236,6 +237,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.hit, a.offs = -1, nil // positions index the shown lines, which changed
 	case Help:
 		a.help = true
+	case ToggleThinking:
+		a.thinking, a.hit, a.offs = !a.thinking, -1, nil
 	case ToggleStamps:
 		a.stamps, a.offs = !a.stamps, nil // row counts changed
 	case PickChan:
@@ -368,7 +371,7 @@ func (a App) inputLine() (label, input, hint string) {
 		return "INSERT", a.in.Value(), keyHint("enter", "send", "tab", "complete", "↑↓", "channel", "esc", "normal")
 	}
 	return "NORMAL", "", keyHint("↑↓", "channel", "tab", "last", "C-t", "pick", "i", "type", ":", "literal", "?", "help",
-		"t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps))
+		"t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps), "T", "thinking:"+onOff(a.thinking))
 }
 
 // View is the full-screen frame; screen is its text.
@@ -486,7 +489,7 @@ func (a App) WithCmd(f func(ch string, c model.Cmd) tea.Cmd) App {
 // m (mentions) keeps direct lines only: in a # channel the Chat lines (replies to
 // you, your lines), in a & room only lines that @mention you or are yours.
 func (a App) shows(k model.ChanKind, l model.Line) bool {
-	if !a.tools && l.Kind == model.Tool {
+	if (!a.tools && l.Kind == model.Tool) || (!a.thinking && l.Kind == model.Thinking) {
 		return false
 	}
 	if !a.mentions {

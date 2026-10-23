@@ -49,9 +49,10 @@ func claudeDir() (string, error) {
 }
 
 type tail struct {
-	t    *transcript.Tailer // used by the poller only
-	mode string             // last permissionMode seen, "" until one is; guarded by runner.mu
-	old  bool               // the first batch is history: shown, not acted on, not unread; poller only
+	t     *transcript.Tailer // used by the poller only
+	mode  string             // last permissionMode seen, "" until one is; guarded by runner.mu
+	old   bool               // the first batch is history: shown, not acted on, not unread; poller only
+	reply bool               // the session is answering a line we sent: its text is a direct reply; poller only
 }
 
 // runner holds the producers' state; emit hands messages to the UI. r.mu guards
@@ -324,7 +325,16 @@ func (r *runner) poll() {
 			if ev.Type == "" {
 				continue
 			}
+			switch prompt(ev) {
+			case promptOurs:
+				t.reply = true
+			case promptOther:
+				t.reply = false
+			}
 			for _, l := range blockLines(ev, j.e.Name, r.user) {
+				if t.reply && l.Kind == model.Transcript && ev.Type == "assistant" {
+					l.Kind = model.Chat // an answer to our line: m (mentions) shows it
+				}
 				r.emit(ui.LineMsg{Ch: j.name, L: l, Old: old})
 			}
 		}
@@ -579,6 +589,8 @@ func blockLines(ev transcript.Event, session, user string) []model.Line {
 			out = append(out, model.Line{At: now, Nick: user, Text: b.Text, Dim: strings.HasPrefix(b.Text, "<"), Kind: model.Transcript}) // injected tags, not typed
 		case b.Kind == transcript.TextBlock:
 			out = append(out, model.Line{At: now, Nick: nick, Text: b.Text, Kind: model.Transcript})
+		case b.Kind == transcript.ThinkingBlock:
+			out = append(out, model.Line{At: now, Nick: nick, Text: b.Text, Dim: true, Kind: model.Thinking})
 		case b.Kind == transcript.ToolUseBlock && (toIRCC(b.ToolTo) || b.ToolTo == user || strings.HasPrefix(b.ToolTo, "&")): // reply shows via the endpoint
 			continue
 		case b.Kind == transcript.ToolUseBlock:
@@ -619,4 +631,32 @@ func toolText(b transcript.Block) string {
 		return "* " + b.Tool
 	}
 	return "* " + b.Tool + ": " + b.ToolArg
+}
+
+type promptKind uint8
+
+const (
+	promptNone  promptKind = iota // not a prompt (assistant event, tool results)
+	promptOurs                    // a line ircc sent (our own wrapper)
+	promptOther                   // typed in Claude, or sent by another session
+)
+
+// prompt tells who prompted the session in a user event; tool results are not prompts.
+func prompt(ev transcript.Event) promptKind {
+	if ev.Type != "user" {
+		return promptNone
+	}
+	for _, b := range ev.Blocks {
+		if b.Kind != transcript.TextBlock {
+			continue
+		}
+		if w, err := peer.FindWrapper(b.Text); err == nil && registry.IsOwn(w.From.Path()) {
+			return promptOurs
+		}
+		if strings.HasPrefix(b.Text, "<") { // injected tags (system reminders) are nobody's prompt
+			continue
+		}
+		return promptOther
+	}
+	return promptNone
 }

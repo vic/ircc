@@ -10,23 +10,22 @@ import (
 type CmdName string
 
 const (
-	CmdJoin     CmdName = "join"
-	CmdPart     CmdName = "part"
-	CmdClose    CmdName = "close"
-	CmdInvite   CmdName = "invite"
-	CmdKick     CmdName = "kick"
-	CmdTopic    CmdName = "topic"
-	CmdWho      CmdName = "who"
-	CmdNames    CmdName = "names"
-	CmdMsg      CmdName = "msg"
-	CmdMode     CmdName = "mode"
-	CmdThinking CmdName = "thinking"
-	CmdQuit     CmdName = "quit"
+	CmdJoin   CmdName = "join"
+	CmdPart   CmdName = "part"
+	CmdClose  CmdName = "close"
+	CmdInvite CmdName = "invite"
+	CmdKick   CmdName = "kick"
+	CmdTopic  CmdName = "topic"
+	CmdWho    CmdName = "who"
+	CmdNames  CmdName = "names"
+	CmdMsg    CmdName = "msg"
+	CmdMode   CmdName = "mode"
+	CmdQuit   CmdName = "quit"
 )
 
 // CmdWords are the words a / line can start with (completion lists them); rm and q
 // are aliases ParseCmd maps to close and quit.
-var CmdWords = []string{"join", "part", "rm", "close", "invite", "kick", "topic", "who", "names", "msg", "mode", "thinking", "quit"}
+var CmdWords = []string{"join", "part", "rm", "close", "invite", "kick", "topic", "who", "names", "msg", "mode", "quit"}
 
 // Cmd can only be built by ParseCmd.
 type Cmd struct {
@@ -41,7 +40,7 @@ func (c Cmd) Args() []string { return c.args }
 // the line verbatim. ok is false for an unknown name; n < 0 is free-form.
 func arity(n CmdName) (count int, raw, ok bool) {
 	switch n {
-	case CmdJoin, CmdKick, CmdMode, CmdThinking:
+	case CmdJoin, CmdKick, CmdMode:
 		return 1, false, true
 	case CmdInvite:
 		return 2, false, true
@@ -101,8 +100,6 @@ func ParseCmd(line string) (Cmd, error) {
 		switch {
 		case name == CmdMode && args[0] != "bypass" && args[0] != "prompting":
 			return Cmd{}, fmt.Errorf("/mode wants bypass|prompting, got %q", args[0])
-		case name == CmdThinking && args[0] != "on" && args[0] != "off":
-			return Cmd{}, fmt.Errorf("/thinking wants on|off, got %q", args[0])
 		}
 	}
 	return Cmd{name: name, args: args}, nil

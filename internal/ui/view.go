@@ -327,6 +327,7 @@ var helpSections = []struct {
 		{"t", "show / hide tool lines"},
 		{"m", "mentions only (direct lines) / all lines"},
 		{"s", "show / hide times (15:04)"},
+		{"T", "show / hide thinking"},
 	}},
 	{"INSERT", [][2]string{
 		{"enter", "send to the channel"},

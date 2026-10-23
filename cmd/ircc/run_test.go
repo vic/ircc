@@ -16,6 +16,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"ircc/internal/model"
 	"ircc/internal/peer"
 	"ircc/internal/registry"
 	"ircc/internal/rooms"
@@ -427,7 +428,7 @@ func TestBlockLines(t *testing.T) {
 	}{
 		{"assistant text", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.TextBlock, Text: "hi"}}}, []row{{"alpha", "hi", false}}},
 		{"tool_use dim", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "Bash"}}}, []row{{"alpha", "* Bash", true}}},
-		{"thinking hidden", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ThinkingBlock, Text: "hmm"}}}, nil},
+		{"thinking emitted dim (the T toggle hides it in the UI)", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ThinkingBlock, Text: "hmm"}}}, []row{{"alpha", "hmm", true}}},
 		{"user text", transcript.Event{Type: "user", Blocks: []transcript.Block{{Kind: transcript.TextBlock, Text: "typed"}}}, []row{{"vic", "typed", false}}},
 		{"tool_result ok hidden", transcript.Event{Type: "user", Blocks: []transcript.Block{{Kind: transcript.ToolResultBlock}}}, nil},
 		{"tool_result error", transcript.Event{Type: "user", Blocks: []transcript.Block{{Kind: transcript.ToolResultBlock, IsError: true}}}, []row{{"alpha", "! tool error", true}}},
@@ -533,5 +534,30 @@ func TestHistoryReplayedOld(t *testing.T) {
 	}
 	if strings.Join(got, "|") != "from before old=true|live now old=false" {
 		t.Fatalf("lines %q", got)
+	}
+}
+
+func TestRepliesToOurLinesAreChat(t *testing.T) {
+	f := newFix(t)
+	s := &sink{}
+	r := newRunner(f.claude, "/proc", "vic", s.emit)
+	defer r.close()
+	r.onSnapshot(snapshot(t, f))
+	r.poll()
+	ours := `{"type":"user","message":{"content":"Another Claude session sent a message:\n<cross-session-message from=\"uds:/run/x/ircc-vic.sock\" from-name=\"vic\" from-mode=\"prompting\">\nstatus?\n</cross-session-message>"}}`
+	say := func(txt string) string {
+		return `{"type":"assistant","message":{"content":[{"type":"text","text":"` + txt + `"}]}}`
+	}
+	appendLine(t, f.transcript, ours+"\n"+`{"type":"user","message":{"content":"<system-reminder>x</system-reminder>"}}`+"\n"+say("all green")+"\n"+
+		`{"type":"user","message":{"content":"typed in claude"}}`+"\n"+say("ok doing it")+"\n")
+	r.poll()
+	var got []string
+	for _, m := range s.take() {
+		if lm, ok := m.(ui.LineMsg); ok && lm.L.Nick == "alpha" {
+			got = append(got, fmt.Sprintf("%s=%v", lm.L.Text, lm.L.Kind == model.Chat))
+		}
+	}
+	if strings.Join(got, "|") != "all green=true|ok doing it=false" { // NEG: a prompt typed in Claude ends the reply
+		t.Fatalf("got %q", got)
 	}
 }

@@ -29,12 +29,10 @@ func TestParseCmd(t *testing.T) {
 		{"/rm &x", CmdClose, []string{"&x"}, false},
 		{"/mode bypass", CmdMode, []string{"bypass"}, false},
 		{"/mode prompting", CmdMode, []string{"prompting"}, false},
-		{"/thinking on", CmdThinking, []string{"on"}, false},
-		{"/thinking off", CmdThinking, []string{"off"}, false},
 		{"/foo", "", nil, true},
 		{"/mode x", "", nil, true},
 		{"/mode", "", nil, true},
-		{"/thinking maybe", "", nil, true},
+		{"/thinking on", "", nil, true}, // thinking is the T key now (vic 2026-10-22)
 		{"/join", "", nil, true},
 		{"/join &a &b", "", nil, true},
 		{"/kick", "", nil, true},
