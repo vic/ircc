@@ -85,7 +85,9 @@ type App struct {
 	hit       int             // index in the current channel of the last search hit, -1 none
 	offs      map[string]int  // per channel: lines scrolled back from the newest
 	help      bool            // the ? popup is shown; the next key closes it
-	prev      string          // channel focused before the current one; tab returns to it
+	focus     paneFocus       // tab: which pane takes keys (chat, channels, nicks)
+	fq        string          // query typed in a focused side pane (fuzzy filter)
+	fsel      int             // selected row in the focused side pane
 	stamps    bool            // s: show "15:04 " before each line
 	pick      bool            // ctrl+t or /: the picker is open
 	pickLines bool            // the picker searches lines (/), not channels (ctrl+t)
@@ -178,6 +180,9 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if k == "ctrl+c" {
 		return a, tea.Quit
 	}
+	if a.focus != focusChat && a.mode == Normal && a.prompt == 0 && !a.pick && !a.help {
+		return a.paneKey(msg)
+	}
 	if a.pick {
 		return a.pickKey(msg)
 	}
@@ -252,8 +257,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a.openPick(false), nil
 	case NextTurn, PrevTurn:
 		a = a.turn(act.Kind == NextTurn)
-	case LastChan:
-		a = a.focusName(a.prev)
+	case FocusPane:
+		a.focus, a.fq, a.fsel = focusChans, "", 0
 	case NextChan, PrevChan, GotoChan:
 		a = a.switchChan(act)
 	}
@@ -324,13 +329,13 @@ func (a App) switchChan(act Action) App {
 	return a.focusName(cs[to].Name)
 }
 
-// focusName makes channel name current and remembers the one it leaves, for tab.
+// focusName makes channel name current.
 func (a App) focusName(name string) App {
 	from := a.m.Current().Name
 	for i, c := range a.m.Channels() {
 		if c.Name == name && name != from {
 			a.m, _ = a.m.Focus(i) // i is in range: it comes from Channels
-			a.prev, a.hit = from, -1
+			a.hit = -1
 		}
 	}
 	return a
@@ -378,8 +383,12 @@ func (a App) inputLine() (label, input, hint string) {
 		return "NORMAL", ":" + a.in.Value(), keyHint("enter", "send as is", "esc", "cancel")
 	case a.mode == Insert:
 		return "INSERT", a.in.Value(), keyHint("enter", "send", "tab", "complete", "↑↓", "channel", "esc", "normal")
+	case a.focus == focusChans:
+		return "CHANNELS", "", keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "join", "tab", "nicks", "esc", "chat")
+	case a.focus == focusNicks:
+		return "NICKS", "", keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "mention", "tab", "chat", "esc", "chat")
 	}
-	return "NORMAL", "", keyHint("↑↓", "channel", "tab", "last", "C-t", "pick", "i", "type", ":", "literal", "?", "help",
+	return "NORMAL", "", keyHint("↑↓", "channel", "tab", "panes", "C-t", "pick", "i", "type", ":", "literal", "?", "help",
 		"t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps))
 }
 
@@ -403,7 +412,7 @@ func (a App) screen() string {
 		return pickView(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel)
 	}
 	label, input, hint := a.inputLine()
-	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.paneNicks(), a.lines(a.m.Current()), a.wrap(), a.suggest(), hint)
+	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.sides(), a.lines(a.m.Current()), a.wrap(), a.suggest(), hint)
 }
 
 // page is the number of scrollback rows View shows; a long input takes rows from it.
@@ -755,4 +764,79 @@ func (a App) turn(fwd bool) App {
 		}
 	}
 	return a
+}
+
+// paneFocus is the pane that takes NORMAL keys; tab cycles it (vic 2026-10-22).
+type paneFocus uint8
+
+const (
+	focusChat paneFocus = iota
+	focusChans
+	focusNicks
+)
+
+// paneItems is the focused side pane's rows: names (channels, or nicks with busy
+// marks) filtered fuzzily by fq, and the plain names to act on. Unfocused or
+// with no query, every row in pane order.
+func (a App) paneItems(f paneFocus) (show, names []string) {
+	if f == focusChans {
+		names = a.chanNames()
+		show = names
+	} else {
+		names = chanNicks(a.m.Current(), a.user)
+		show = a.paneNicks()
+	}
+	if f != a.focus || strings.TrimSpace(a.fq) == "" {
+		return show, names
+	}
+	var fs, fn []string
+	for _, m := range pickList(names, a.fq) {
+		fs, fn = append(fs, show[m.idx]), append(fn, names[m.idx])
+	}
+	return fs, fn
+}
+
+// paneKey runs one NORMAL key while a side pane has focus: type to filter, up/down
+// to select, enter to join a channel or start a line mentioning a nick, tab to the
+// next pane, esc back to chat.
+func (a App) paneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	_, names := a.paneItems(a.focus)
+	switch k := msg.String(); k {
+	case "esc":
+		a.focus = focusChat
+	case "tab":
+		a.focus, a.fq, a.fsel = (a.focus+1)%3, "", 0
+	case "up", "ctrl+p":
+		a.fsel = max(a.fsel-1, 0)
+	case "down", "ctrl+n":
+		a.fsel = max(min(a.fsel+1, len(names)-1), 0)
+	case "backspace":
+		if r := []rune(a.fq); len(r) > 0 {
+			a.fq, a.fsel = string(r[:len(r)-1]), 0
+		}
+	case "enter":
+		if a.fsel >= len(names) {
+			return a, nil
+		}
+		if a.focus == focusChans {
+			a = a.focusName(names[a.fsel])
+		} else {
+			a.mode = Insert
+			a.in.SetValue(a.in.Value() + "@" + names[a.fsel] + " ")
+			a.in.CursorEnd()
+			a.in.Focus()
+		}
+		a.focus = focusChat
+	default:
+		if msg.Text != "" {
+			a.fq, a.fsel = a.fq+msg.Text, 0
+		}
+	}
+	return a, nil
+}
+
+func (a App) sides() sidePanes {
+	chans, _ := a.paneItems(focusChans)
+	nicks, _ := a.paneItems(focusNicks)
+	return sidePanes{chans: chans, nicks: nicks, focus: a.focus, sel: a.fsel, q: a.fq}
 }

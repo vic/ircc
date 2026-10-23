@@ -190,7 +190,7 @@ func TestInputGrows(t *testing.T) {
 	}
 }
 
-func TestRecentFirstAndTab(t *testing.T) {
+func TestRecentFirstAndPaneFocus(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil) // #a #b #c, focus #a
 	order := func() string {
@@ -204,15 +204,23 @@ func TestRecentFirstAndTab(t *testing.T) {
 	if a = next.(App); order() != "#c #a #b" || cur(a) != "#a" { // newest first, focus kept
 		t.Fatalf("order %s cur %s", order(), cur(a))
 	}
-	a, _ = press(t, a, "down") // #a -> #b
+	// tab focuses the channel pane: type to filter, enter joins (vic 2026-10-22)
 	a, _ = press(t, a, "tab")
-	if cur(a) != "#a" {
-		t.Fatalf("tab: %s", cur(a))
+	a = typeText(t, a, "b")
+	a, _ = press(t, a, "enter")
+	if cur(a) != "#b" || a.focus != focusChat {
+		t.Fatalf("channel pane: %s focus %d", cur(a), a.focus)
 	}
-	a, _ = press(t, a, "tab")
-	if cur(a) != "#b" { // tab again flips back
-		t.Fatalf("tab tab: %s", cur(a))
+	// tab tab focuses nicks: enter starts a line mentioning the selected nick
+	a, _ = press(t, a, "tab", "tab", "down", "enter")
+	if a.mode != Insert || a.in.Value() != "@b " {
+		t.Fatalf("nick pane: mode %v input %q", a.mode, a.in.Value())
 	}
+	a, _ = press(t, a, "esc", "tab", "esc") // NEG: esc leaves the pane, nothing else moves
+	if a.focus != focusChat || cur(a) != "#b" {
+		t.Fatalf("esc: focus %d cur %s", a.focus, cur(a))
+	}
+	checkFrame(t, a, a.w, a.h)
 }
 
 func TestNickColorsEverywhere(t *testing.T) {

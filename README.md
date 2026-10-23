@@ -36,7 +36,8 @@ Press `?` for all keys. Other useful keys:
 | key        | action                                |
 |------------|---------------------------------------|
 | up, down   | previous / next channel               |
-| tab        | back to the previous channel          |
+| tab        | focus the channel or nick pane: type to filter, enter joins or mentions |
+| J, K       | next / previous speaker change         |
 | ctrl+t     | fuzzy channel picker                  |
 | wheel, j/k | scroll                                |
 | s          | show or hide times (`15:04`)          |

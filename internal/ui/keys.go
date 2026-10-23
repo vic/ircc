@@ -32,7 +32,7 @@ const (
 	Help
 	ToggleTools
 	ToggleMentions
-	LastChan
+	FocusPane
 	NextTurn
 	PrevTurn
 	ToggleStamps
@@ -97,7 +97,7 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 		case "K":
 			return Action{Kind: PrevTurn}, Normal, ""
 		case "tab":
-			return Action{Kind: LastChan}, Normal, ""
+			return Action{Kind: FocusPane}, Normal, ""
 		case "s":
 			return Action{Kind: ToggleStamps}, Normal, ""
 		case "t":

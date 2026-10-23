@@ -163,11 +163,15 @@ func codeRows(rows []string, of []int, shown []model.Line) []bool {
 // Channel markers: ● current, ○ gone, else the unread count.
 func View(m model.Model, ml model.Modeline, input string, w, h, off, hit int) string {
 	cur := m.Current()
-	return render(m, ml, input, w, h, off, hit, memberNicks(cur), cur.Lines.All(), wrapLine, nil, "")
+	var names []string
+	for _, c := range m.Channels() {
+		names = append(names, c.Name)
+	}
+	return render(m, ml, input, w, h, off, hit, sidePanes{chans: names, nicks: memberNicks(cur)}, cur.Lines.All(), wrapLine, nil, "")
 }
 
 // render is View with the nick pane given as nicks and the shown lines of the current channel.
-func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, nicks []string, shown []model.Line, wrap wrapFunc, sugg []string, hint string) string {
+func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, p sidePanes, shown []model.Line, wrap wrapFunc, sugg []string, hint string) string {
 	if w < 1 || h < 3 {
 		return ""
 	}
@@ -184,12 +188,19 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 			rows = append(rows, lineRow(lines, of, shown, hit, i, w, "", code))
 		}
 	} else {
-		chans := m.Channels()
+		byName := map[string]model.Channel{}
+		for _, c := range m.Channels() {
+			byName[c.Name] = c
+		}
+		var chans []model.Channel
+		for _, n := range p.chans {
+			chans = append(chans, byName[n])
+		}
 		mid := w - chanW - nickW - 4 // four border columns
 		b := border.Render
-		rows = append(rows, b("┌")+seg("channels", chanW)+b("┬")+seg(cur.Name, mid)+b("┬")+seg("nicks", nickW)+b("┐"))
+		rows = append(rows, b("┌")+seg(p.title("channels", focusChans), chanW)+b("┬")+seg(cur.Name, mid)+b("┬")+seg(p.title("nicks", focusNicks), nickW)+b("┐"))
 		for i := 0; i < n; i++ {
-			nk := at(nicks, i)
+			nk := at(p.nicks, i)
 			if nk != "" { // an empty Render still emits escapes
 				mark, name := "", nk
 				if rest, ok := strings.CutPrefix(nk, busyMark); ok {
@@ -197,8 +208,15 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 				}
 				nk = mark + nickStyle(name).Render(name)
 			}
-			rows = append(rows, b("│")+chanCell(chans, cur.Name, i)+b("│")+lineRow(lines, of, shown, hit, i, mid, " ", code)+
-				b("│")+fit(cell, " "+nk, nickW)+b("│"))
+			cc, nc := chanCell(chans, cur.Name, i), fit(cell, " "+nk, nickW)
+			if p.focus == focusChans && i == p.sel && i < len(chans) {
+				cc = fit(current, " "+chans[i].Name, chanW)
+			}
+			if p.focus == focusNicks && i == p.sel && i < len(p.nicks) {
+				nc = fit(current, " "+p.nicks[i], nickW)
+			}
+			rows = append(rows, b("│")+cc+b("│")+lineRow(lines, of, shown, hit, i, mid, " ", code)+
+				b("│")+nc+b("│"))
 		}
 		rows = append(rows, b("└"+strings.Repeat("─", chanW)+"┴"+strings.Repeat("─", mid)+"┴"+strings.Repeat("─", nickW)+"┘"))
 	}
@@ -353,7 +371,7 @@ var helpSections = []struct {
 }{
 	{"NORMAL", [][2]string{
 		{"up down", "previous / next channel (also ctrl+p ctrl+n, gT gt, {n}gt)"},
-		{"tab", "back to the previous channel"},
+		{"tab", "focus channels, then nicks: type to filter, enter joins / mentions"},
 		{"ctrl+t", "fuzzy channel picker"},
 		{"wheel j k", "scroll"},
 		{"J K", "next / previous speaker change"},
@@ -434,4 +452,21 @@ func wrapStamped(l model.Line, width int) []string {
 		}
 	}
 	return rs
+}
+
+// sidePanes is what the channel and nick panes show: rows in order (filtered when
+// focused), which pane has focus, its selected row and the query typed in it.
+type sidePanes struct {
+	chans, nicks []string
+	focus        paneFocus
+	sel          int
+	q            string
+}
+
+// title is a side pane's title: "▸name query" while it has focus.
+func (p sidePanes) title(name string, f paneFocus) string {
+	if p.focus != f {
+		return name
+	}
+	return strings.TrimSpace("▸" + name + " " + p.q)
 }
