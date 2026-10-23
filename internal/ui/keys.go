@@ -41,6 +41,7 @@ const (
 	PickChan
 	PickSpeaker
 	Yank
+	PickInvite
 	ReplyMention
 )
 
@@ -80,7 +81,7 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 	}
 	if pending == "" {
 		switch k {
-		case "i", "I", "a", "A", "o":
+		case "i", "a", "A", "o":
 			return Action{}, Insert, ""
 		case "O":
 			return Action{Kind: ReplyMention}, Insert, ""
@@ -100,6 +101,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: PickSpeaker}, Normal, ""
 		case "y":
 			return Action{Kind: Yank}, Normal, ""
+		case "I":
+			return Action{Kind: PickInvite}, Normal, ""
 		case "up":
 			return Action{Kind: LineUp}, Normal, ""
 		case "down":

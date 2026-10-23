@@ -289,6 +289,11 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.stamps, a.offs = !a.stamps, nil // row counts changed
 	case Yank:
 		return a.yank()
+	case PickInvite:
+		if a.m.Current().Kind != model.RoomChan {
+			return a.toast("invite works in a & room: /join &name first", true), nil
+		}
+		return a.openPick(pickInvite), nil
 	case PickSpeaker:
 		return a.openPick(pickSpeakers), nil
 	case PickChan:
@@ -458,7 +463,7 @@ func (a App) screen() string {
 		return helpView(a.w, a.h)
 	}
 	if a.pick {
-		what := [...]string{pickChans: "channel / @nick", pickLines: "search", pickSpeakers: "speaker"}[a.pickWhat]
+		what := [...]string{pickChans: "channel / @nick", pickLines: "search", pickSpeakers: "speaker", pickInvite: "invite to " + a.m.Current().Name}[a.pickWhat]
 		return pickView(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel)
 	}
 	label, input, hint := a.inputLine()
@@ -640,6 +645,7 @@ const (
 	pickChans    pickKind = iota // ctrl+t: channels and @nicks
 	pickLines                    // /: the current channel's shown lines; enter jumps
 	pickSpeakers                 // S: who spoke here; enter shows only that nick (vic 2026-10-23)
+	pickInvite                   // I: who can be invited to this room; enter invites (vic 2026-10-23)
 )
 
 // allSpeakers is the speaker picker's first entry: it clears the filter.
@@ -678,6 +684,19 @@ func (a App) pickSource() []string {
 		for _, l := range a.lines(a.m.Current()) {
 			out = append(out, "<"+l.Nick+"> "+l.Text)
 		}
+	case pickInvite: // every session's main agent and its agents as agent@session, minus members
+		cur := a.m.Current()
+		for _, c := range a.m.Channels() {
+			if c.Kind != model.SessionChan {
+				continue
+			}
+			s := strings.TrimPrefix(c.Name, "#")
+			for _, n := range append([]string{s}, agentsAt(c, s)...) {
+				if !slices.ContainsFunc(cur.Members, func(m model.Member) bool { return m.Nick == n }) {
+					out = append(out, n)
+				}
+			}
+		}
 	case pickSpeakers:
 		out = []string{allSpeakers}
 		cur := a.m.Current()
@@ -703,6 +722,10 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		a.pick = false
 	case "enter":
+		if a.psel < len(ms) && a.pickWhat == pickInvite {
+			a.pick = false
+			return a.runCmd("/invite " + ms[a.psel].name + " " + a.m.Current().Name)
+		}
 		if a.psel < len(ms) && a.pickWhat == pickSpeakers {
 			a.speaker, a.hit, a.offs = ms[a.psel].name, -1, nil // positions index the shown lines, which changed
 			if a.speaker == allSpeakers {
@@ -1046,4 +1069,13 @@ func (a App) yank() (tea.Model, tea.Cmd) {
 	text := ls[a.hit].Text
 	a = a.toast("yanked: "+strings.ReplaceAll(text, "\n", " "), false)
 	return a, tea.SetClipboard(text)
+}
+
+// agentsAt is c's agents as agent@session (D:229).
+func agentsAt(c model.Channel, session string) []string {
+	var out []string
+	for _, ag := range c.Agents {
+		out = append(out, ag.Nick+"@"+session)
+	}
+	return out
 }

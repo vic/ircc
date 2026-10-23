@@ -62,6 +62,7 @@ Press `?` in ircc for all of them.
 | ctrl+t       | pick a channel, or an @nick to mention                  |
 | tab          | focus the channel or nick pane; type to filter, moving previews |
 | i            | type a line (`O` starts a reply to the last @mention)   |
+| I            | invite someone to this room (fuzzy pick)                |
 | /            | fuzzy search; enter jumps to the line                   |
 | J, K         | next / previous speaker change                          |
 | S            | show only one speaker (fuzzy pick)                      |

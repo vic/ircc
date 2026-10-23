@@ -336,7 +336,7 @@ func TestMentionsInRooms(t *testing.T) {
 }
 
 func TestInsertKeys(t *testing.T) {
-	for _, k := range []string{"i", "I", "a", "A", "o", "O"} {
+	for _, k := range []string{"i", "a", "A", "o", "O"} { // I is invite now (vic 2026-10-23)
 		var log []sent
 		a, _ := press(t, newApp(t, &log, nil), k)
 		if a.mode != Insert || a.in.Value() != "" { // O with no mention: plain insert
@@ -721,5 +721,28 @@ func TestHelpCommand(t *testing.T) {
 	a, cmd := press(t, a, "enter")
 	if !a.help || cmd != nil || !strings.Contains(ansi.Strip(a.screen()), "one # channel per Claude session") {
 		t.Fatalf("help %v cmd %v", a.help, cmd)
+	}
+}
+
+func TestInvitePicker(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil) // #a #b #c
+	a, _ = press(t, a, "I")
+	if a.pick || len(notes(a)) != 1 { // NEG: a # channel has nothing to invite to
+		t.Fatalf("I in #: pick %v notes %v", a.pick, notes(a))
+	}
+	next, _ := a.Update(AgentsMsg{Ch: "#b", Agents: []model.Agent{{Nick: "driver-1"}}})
+	next, _ = next.(App).Update(RoomsMsg{"&r"})
+	a = next.(App).focusName("&r")
+	a.m, _ = a.m.WithRoomMembers("&r", []model.Member{{Nick: "a"}})
+	a, _ = press(t, a, "I")
+	if got := strings.Join(a.pickSource(), ","); got != "b,driver-1@b,c" { // members (a) left out
+		t.Fatalf("invitable %q", got)
+	}
+	a = typeText(t, a, "drv")
+	a, cmd := press(t, a, "enter")
+	cm, ok := cmd().(CmdMsg)
+	if !ok || a.pick || cm.Cmd.Name() != model.CmdInvite || strings.Join(cm.Cmd.Args(), " ") != "driver-1@b &r" {
+		t.Fatalf("invite cmd %#v", cmd())
 	}
 }
