@@ -534,10 +534,10 @@ func TestLineCursor(t *testing.T) {
 }
 
 func TestInputCursor(t *testing.T) {
-	if got := withCursor("abc", 1); got != "a"+cursor.Render("b")+"c" {
+	if got := withCursor("abc", 1); got != "a"+cursorMark+"b"+cursorEndMark+"c" {
 		t.Fatalf("mid %q", got)
 	}
-	if got := withCursor("ab", 2); got != "ab"+cursor.Render(" ") {
+	if got := withCursor("ab", 2); got != "ab"+cursorMark+" "+cursorEndMark {
 		t.Fatalf("end %q", got)
 	}
 	var log []sent
@@ -882,7 +882,7 @@ func TestShellPromptRunsLocally(t *testing.T) {
 func TestFileFinderInsertsPath(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
-	a, _ = a.openFilePick()
+	a, _ = a.openFilePick(pickFiles)
 	a.files = []string{"internal/ui/app.go", "README.md"}
 	a = typeText(t, a, "app")
 	a, _ = press(t, a, "enter")
@@ -895,7 +895,7 @@ func TestFileFinderFromPrompt(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
 	a, _ = press(t, a, ":")
-	a, _ = a.openFilePick()
+	a, _ = a.openFilePick(pickFiles)
 	a.files = []string{"README.md"}
 	a = typeText(t, a, "read")
 	a, _ = press(t, a, "enter")
@@ -987,5 +987,39 @@ func TestInputHistory(t *testing.T) {
 	a, _ = press(t, a, "ctrl+n", "ctrl+n", "ctrl+n")
 	if a.in.Value() != "dra" || a.histAt != -1 {
 		t.Fatalf("ctrl+n back to draft: %q", a.in.Value())
+	}
+}
+
+func TestFileBlockFence(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	next, _ := a.Update(fileBlockMsg{Path: "some/file.txt", Text: "hello"})
+	if a = next.(App); a.in.Value() != "```text some/file.txt\nhello\n```\n" || a.mode != Insert {
+		t.Fatalf("fence: %q mode %v", a.in.Value(), a.mode)
+	}
+}
+
+func TestEveryPickerKindRenders(t *testing.T) {
+	var log []sent
+	for k := pickChans; k <= pickFileBlock; k++ {
+		a := newApp(t, &log, nil)
+		a.files = []string{"a.txt"}
+		a = a.openPick(k)
+		_ = a.screen()
+	}
+}
+
+func TestInputScrollsWithCursor(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	var lines []string
+	for i := 0; i < 30; i++ {
+		lines = append(lines, fmt.Sprintf("line%02d", i))
+	}
+	a.in.SetValue(strings.Join(lines, "\n"))
+	a.in.MoveToBegin()
+	rows := inputRows(withCursor(a.in.Value(), inputPos(a.in)), 40, 30)
+	if !strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "line00") {
+		t.Fatalf("cursor on line 0 not visible: %q", rows)
 	}
 }

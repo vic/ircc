@@ -91,8 +91,21 @@ func paneRows(w, h, in int) int {
 // so the end being typed stays visible.
 func inputRows(input string, w, h int) []string {
 	rs := strings.Split(lipgloss.NewStyle().Width(max(w, 1)).Render(input), "\n")
-	if k := max(h/3, 1); len(rs) > k {
-		rs = rs[len(rs)-k:]
+	k := max(h/3, 1)
+	if len(rs) > k { // the window ends at the cursor's row, so moving up scrolls up
+		at := len(rs) - 1
+		for i, r := range rs {
+			if strings.Contains(r, cursorMark) {
+				at = i
+				break
+			}
+		}
+		start := min(max(at-k+1, 0), len(rs)-k)
+		rs = rs[start : start+k]
+	}
+	style := strings.NewReplacer(cursorMark, cursorOn, cursorEndMark, cursorOff)
+	for i := range rs {
+		rs[i] = style.Replace(rs[i])
 	}
 	return rs
 }
@@ -429,6 +442,7 @@ var helpSections = []struct {
 		{"tab", "focus channels, then nicks: type to filter, enter joins / mentions"},
 		{"ctrl+o", "fuzzy picker: channels, and @nicks to mention"},
 		{"ctrl+t", "fuzzy file finder: enter inserts the path"},
+		{"ctrl+f", "fuzzy file finder: enter inserts the file as a fenced block"},
 		{"ctrl+g", "grep: show only lines fuzzy-matching the text (esc clears)"},
 		{"wheel j k", "scroll"},
 		{"J K", "next / previous speaker change"},

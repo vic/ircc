@@ -44,6 +44,7 @@ const (
 	ToggleStamps
 	PickChan
 	PickFile
+	FileBlock
 	GrepLines
 	PickSpeaker
 	Yank
@@ -73,6 +74,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: Send}, Insert, ""
 		case "ctrl+o":
 			return Action{Kind: PickChan}, Insert, ""
+		case "ctrl+f":
+			return Action{Kind: FileBlock}, Insert, ""
 		case "ctrl+t":
 			return Action{Kind: PickFile}, Insert, ""
 		case "ctrl+g":
@@ -110,6 +113,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: Bottom}, Normal, ""
 		case "ctrl+o":
 			return Action{Kind: PickChan}, Normal, ""
+		case "ctrl+f":
+			return Action{Kind: FileBlock}, Normal, ""
 		case "ctrl+t":
 			return Action{Kind: PickFile}, Normal, ""
 		case "ctrl+g":

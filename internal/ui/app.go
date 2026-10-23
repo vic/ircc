@@ -186,6 +186,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		now := a.now()
 		a.toasts = slices.DeleteFunc(slices.Clone(a.toasts), func(t toast) bool { return now.Sub(t.at) >= toastFor })
 		return a, tick()
+	case fileBlockMsg:
+		if msg.Err != nil {
+			a = a.note("file: " + msg.Err.Error())
+		} else {
+			a = a.insertFence("text "+msg.Path, msg.Text)
+		}
 	case filesMsg:
 		a.files = msg
 	case LiteralResultMsg:
@@ -310,8 +316,10 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return a.lineStep(act.Kind == LineDown), nil
 		case act.Kind == PickChan:
 			return a.openPick(pickChans), nil
+		case act.Kind == FileBlock:
+			return a.openFilePick(pickFileBlock)
 		case act.Kind == PickFile:
-			return a.openFilePick()
+			return a.openFilePick(pickFiles)
 		case act.Kind == HistPrev || act.Kind == HistNext:
 			a = a.histStep(act.Kind == HistPrev)
 			return a, nil
@@ -391,8 +399,10 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a.openPick(pickChans), nil
 	case GrepLines:
 		return a.openPick(pickGrep), nil
+	case FileBlock:
+		return a.openFilePick(pickFileBlock)
 	case PickFile:
-		return a.openFilePick()
+		return a.openFilePick(pickFiles)
 	case LineUp, LineDown:
 		a = a.lineStep(act.Kind == LineDown)
 	case NextTurn, PrevTurn:
@@ -425,7 +435,7 @@ func (a App) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		a, _ = a.closePrompt()
 	case "ctrl+t": // the file finder fills the prompt with a path
-		return a.openFilePick()
+		return a.openFilePick(pickFiles)
 	case "enter":
 		kind := a.prompt
 		var v string
@@ -543,11 +553,11 @@ func (a App) toast(text string, err bool) App {
 func (a App) inputLine() (label, input, hint string) {
 	switch {
 	case a.prompt == promptCmd:
-		return "NORMAL", ": " + withCursor(a.in.Value(), inputPos(a.in)), keyHint("enter", "send as is", "C-t", "files", "esc", "cancel")
+		return "NORMAL", ": " + withCursor(a.in.Value(), inputPos(a.in)), keyHint("enter", "send as is", "C-t", "files", "C-f", "file block", "esc", "cancel")
 	case a.prompt == promptCapture:
-		return "NORMAL", "! " + withCursor(a.in.Value(), inputPos(a.in)), keyHint("enter", "run, insert output", "C-t", "files", "esc", "cancel")
+		return "NORMAL", "! " + withCursor(a.in.Value(), inputPos(a.in)), keyHint("enter", "run, insert output", "C-t", "files", "C-f", "file block", "esc", "cancel")
 	case a.prompt == promptShell:
-		return "NORMAL", "$ " + withCursor(a.in.Value(), inputPos(a.in)), keyHint("enter", "run locally", "C-t", "files", "esc", "cancel")
+		return "NORMAL", "$ " + withCursor(a.in.Value(), inputPos(a.in)), keyHint("enter", "run locally", "C-t", "files", "C-f", "file block", "esc", "cancel")
 	case a.mode == Insert:
 		prompt := "> "
 		if a.quote != nil { // RE: while replying; the quote is dropped once the input is empty
@@ -556,7 +566,7 @@ func (a App) inputLine() (label, input, hint string) {
 		if u := a.cmdUsage(); u != "" { // typing a /command: its usage is the hint (vic 2026-10-23)
 			return "INSERT", prompt + withCursor(a.in.Value(), inputPos(a.in)), u
 		}
-		hint := keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "files", "C-o", "pick", "esc", "normal")
+		hint := keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "files", "C-f", "file block", "C-o", "pick", "esc", "normal")
 		if a.quote != nil { // the replied-to line is shown here, not in the input
 			hint = keyHint("re", "<"+a.quote.Nick+"> "+a.quote.Text) + "   " + hint
 		}
@@ -566,7 +576,7 @@ func (a App) inputLine() (label, input, hint string) {
 	case a.focus == focusNicks:
 		return "NICKS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "mention", "tab", "chat", "esc", "chat")
 	}
-	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "files", "C-o", "pick", "i", "type", "?", "help", "$", "shell")
+	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "files", "C-f", "file block", "C-o", "pick", "i", "type", "?", "help", "$", "shell")
 }
 
 // footer is the last row outside INSERT: more keys and the toggle states, since
@@ -594,7 +604,7 @@ func (a App) screen() string {
 	case a.pick && a.pickWhat == pickGrep:
 		return overlayCentered(screen, a.w, a.h, grepBox(a.w, a.pq.Value()))
 	case a.pick:
-		what := [...]string{pickChans: "channel / @nick", pickLines: "search", pickSpeakers: "speaker", pickInvite: "invite to " + a.m.Current().Name, pickFiles: "file"}[a.pickWhat]
+		what := [...]string{pickChans: "channel / @nick", pickLines: "search", pickSpeakers: "speaker", pickInvite: "invite to " + a.m.Current().Name, pickFiles: "file", pickFileBlock: "file block", pickGrep: "grep"}[a.pickWhat]
 		return overlayCentered(screen, a.w, a.h, pickBox(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel, a.pickWhat == pickSpeakers, a.shownMarks()))
 	}
 	return screen
@@ -783,12 +793,13 @@ func (a App) chanNames() []string {
 type pickKind uint8
 
 const (
-	pickChans    pickKind = iota // ctrl+o: channels and @nicks
-	pickLines                    // /: the current channel's shown lines; enter jumps
-	pickSpeakers                 // S: who spoke here; enter shows only that nick (vic 2026-10-23)
-	pickInvite                   // I: who can be invited to this room; enter invites (vic 2026-10-23)
-	pickFiles                    // ctrl+t: the session's files; enter inserts the path
-	pickGrep                     // ctrl+g: filter the shown lines to fuzzy matches, live
+	pickChans     pickKind = iota // ctrl+o: channels and @nicks
+	pickLines                     // /: the current channel's shown lines; enter jumps
+	pickSpeakers                  // S: who spoke here; enter shows only that nick (vic 2026-10-23)
+	pickInvite                    // I: who can be invited to this room; enter invites (vic 2026-10-23)
+	pickFiles                     // ctrl+t: the session's files; enter inserts the path
+	pickFileBlock                 // ctrl+f: the session's files; enter inserts the file as a fenced block
+	pickGrep                      // ctrl+g: filter the shown lines to fuzzy matches, live
 )
 
 // allSpeakers is the speaker picker's first entry: it clears the filter.
@@ -836,7 +847,7 @@ func (a App) pickSource() []string {
 		for _, l := range a.lines(a.m.Current()) {
 			out = append(out, "<"+l.Nick+"> "+l.Text)
 		}
-	case pickFiles:
+	case pickFiles, pickFileBlock:
 		out = a.files
 	case pickInvite: // every session's main agent and its agents as agent@session, minus members
 		cur := a.m.Current()
@@ -879,6 +890,10 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		a.pick = false
 	case "enter":
+		if a.psel < len(ms) && a.pickWhat == pickFileBlock {
+			a.pick = false
+			return a, readFileCmd(a.m.Current().Cwd, ms[a.psel].name)
+		}
 		if a.psel < len(ms) && a.pickWhat == pickFiles {
 			if a.prompt == 0 { // a : or $ prompt keeps its own mode
 				a.mode = Insert
@@ -1315,13 +1330,26 @@ func withCursor(s string, pos int) string {
 	rs := []rune(s)
 	pos = min(max(pos, 0), len(rs))
 	if pos == len(rs) {
-		return s + cursor.Render(" ")
+		return s + cursorMark + " " + cursorEndMark
 	}
 	if rs[pos] == '\n' { // a cursor on a line end shows as a block, the newline stays
-		return string(rs[:pos]) + cursor.Render(" ") + string(rs[pos:])
+		return string(rs[:pos]) + cursorMark + " " + cursorEndMark + string(rs[pos:])
 	}
-	return string(rs[:pos]) + cursor.Render(string(rs[pos])) + string(rs[pos+1:])
+	return string(rs[:pos]) + cursorMark + string(rs[pos]) + cursorEndMark + string(rs[pos+1:])
 }
+
+// cursorMark and cursorEndMark bracket the cursor in input text; inputRows turns them into
+// the cursor style and uses the cursor's row to scroll the input.
+const (
+	cursorMark    = ""
+	cursorEndMark = ""
+)
+
+// cursorOn and cursorOff are the SGR that open and close the cursor style.
+var cursorOn, cursorOff = func() (string, string) {
+	parts := strings.SplitN(cursor.Render("\x00"), "\x00", 2)
+	return parts[0], parts[1]
+}()
 
 // WithResume makes ch current as soon as it shows up in the channel list, once:
 // ircc starts on the channel it was on when it last quit (vic 2026-10-23).
@@ -1389,9 +1417,9 @@ func (a App) cmdUsage() string {
 type filesMsg []string
 
 // openFilePick opens the file finder; the list comes from git in the session's directory.
-func (a App) openFilePick() (App, tea.Cmd) {
+func (a App) openFilePick(k pickKind) (App, tea.Cmd) {
 	cwd := a.m.Current().Cwd
-	return a.openPick(pickFiles), func() tea.Msg { return filesMsg(listFiles(cwd)) }
+	return a.openPick(k), func() tea.Msg { return filesMsg(listFiles(cwd)) }
 }
 
 // grepSync sets the ctrl+g filter to the picker's text while the grep picker is open.
@@ -1422,7 +1450,7 @@ func (a App) runCapture(cmd string) (App, tea.Cmd) {
 // insertBlock appends text to the input as a markdown fenced block and opens INSERT, so it can be edited and sent.
 func (a App) insertBlock(text string) App {
 	a.mode = Insert
-	a.in.SetValue(a.in.Value() + "```\n" + strings.TrimRight(text, "\n") + "\n```\n")
+	a = a.insertFence("", strings.TrimRight(text, "\n"))
 	a.in.MoveToEnd()
 	a.in.Focus()
 	return a
@@ -1462,5 +1490,32 @@ func (a App) histStep(back bool) App {
 		a.in.SetValue(a.hist[a.histAt])
 	}
 	a.in.MoveToEnd()
+	return a
+}
+
+// fileBlockMsg is a file read for ctrl+f: Text is its content, Err why it could not be read.
+type fileBlockMsg struct {
+	Path, Text string
+	Err        error
+}
+
+// readFileCmd reads name (relative to cwd) in the background for a fenced block.
+func readFileCmd(cwd, name string) tea.Cmd {
+	return func() tea.Msg {
+		path := name
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(cwd, path)
+		}
+		b, err := os.ReadFile(path)
+		return fileBlockMsg{Path: name, Text: strings.TrimRight(string(b), "\n"), Err: err}
+	}
+}
+
+// insertFence appends a fenced block to the input, info on its opening line, and opens INSERT.
+func (a App) insertFence(info, text string) App {
+	a.mode = Insert
+	a.in.SetValue(a.in.Value() + "```" + info + "\n" + text + "\n```\n")
+	a.in.MoveToEnd()
+	a.in.Focus()
 	return a
 }
