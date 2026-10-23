@@ -3,6 +3,9 @@ package ui
 import (
 	"cmp"
 	"maps"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -174,6 +177,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case LiteralResultMsg:
 		if msg.Err != nil {
 			a = a.note("literal send failed: " + msg.Err.Error())
+		}
+	case editDoneMsg:
+		if msg.Err != nil {
+			a = a.note("editor failed: " + msg.Err.Error())
 		}
 	case SendResultMsg:
 		a = a.sent(msg)
@@ -1070,8 +1077,15 @@ func (a App) click(m tea.Mouse) (tea.Model, tea.Cmd) {
 		if _, names := a.paneItems(focusNicks); i < len(names) {
 			a = a.mention(names[i])
 		}
-	default: // the lines pane: a click replies to that line's nick
-		if l, ok := a.lineAt(i); ok && l.Nick != "" && l.Nick != a.user {
+	default: // the lines pane: a file or `command` opens, else a click replies to that line's nick
+		l, row, ok := a.lineAt(i)
+		if !ok {
+			break
+		}
+		if path, cmd, hit := clickTarget(row, m.X-chanW-3); hit { // the text starts after the border and a space
+			return a.openTarget(path, cmd)
+		}
+		if l.Nick != "" && l.Nick != a.user {
 			a = a.mention(l.Nick)
 			a.quote = &l
 		}
@@ -1079,14 +1093,37 @@ func (a App) click(m tea.Mouse) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// lineAt is the shown line of lines-pane row i, as render draws it.
-func (a App) lineAt(i int) (model.Line, bool) {
+// openTarget opens path in $EDITOR, suspending the app while it runs. cmd goes to
+// the : prompt as !cmd, so Enter sends the command to the agent as is.
+func (a App) openTarget(path, cmd string) (App, tea.Cmd) {
+	if cmd != "" {
+		a = a.openPrompt(promptCmd)
+		a.in.SetValue("!" + cmd)
+		a.in.CursorEnd()
+		return a, nil
+	}
+	if rest, ok := strings.CutPrefix(path, "~/"); ok {
+		home, _ := os.UserHomeDir()
+		path = filepath.Join(home, rest)
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(a.m.Current().Cwd, path)
+	}
+	argv := append(strings.Fields(cmp.Or(strings.TrimSpace(os.Getenv("EDITOR")), "vi")), path)
+	return a, tea.ExecProcess(exec.Command(argv[0], argv[1:]...), func(err error) tea.Msg { return editDoneMsg{err} })
+}
+
+// editDoneMsg reports that $EDITOR exited; Err is nil on a clean exit.
+type editDoneMsg struct{ Err error }
+
+// lineAt is the shown line of lines-pane row i, as render draws it, and the row's plain text.
+func (a App) lineAt(i int) (model.Line, string, bool) {
 	shown := a.lines(a.m.Current())
 	rows, of := tailRows(shown, a.page(), a.off(), textWidth(a.w, a.h), a.wrap())
 	if i >= len(rows) {
-		return model.Line{}, false
+		return model.Line{}, "", false
 	}
-	return shown[of[i]], true
+	return shown[of[i]], rows[i], true
 }
 
 // mention starts an insert line with @nick, after any text already typed.

@@ -46,6 +46,7 @@ type Channel struct {
 	Name    string
 	Kind    ChanKind
 	PID     int
+	Cwd     string // session channels: the session's working directory, for relative file clicks
 	Gone    bool
 	Unread  int
 	Lines   Ring[Line]
@@ -118,7 +119,7 @@ func (m Model) WithSessions(ss []Session) Model {
 		for _, s := range ss {
 			if s.PID == c.PID {
 				live[c.PID] = true
-				c.Name, c.Gone = clean(names[c.PID]), false
+				c.Name, c.Cwd, c.Gone = clean(names[c.PID]), s.Cwd, false
 			}
 		}
 		if !live[c.PID] {
@@ -130,7 +131,7 @@ func (m Model) WithSessions(ss []Session) Model {
 		if _, seen := old[s.PID]; seen {
 			continue
 		}
-		out = append(out, Channel{Name: clean(names[s.PID]), Kind: SessionChan, PID: s.PID, Lines: RingOf[Line](m.cap)})
+		out = append(out, Channel{Name: clean(names[s.PID]), Kind: SessionChan, PID: s.PID, Cwd: s.Cwd, Lines: RingOf[Line](m.cap)})
 	}
 	n := m
 	n.chans = out
