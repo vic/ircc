@@ -28,10 +28,6 @@ type cmdRT interface {
 
 var _ cmdRT = (*roomRT)(nil)
 
-// errUnsupported is the answer to /mode: DESIGN :318 lists it
-// without a protocol.
-var errUnsupported = errors.New("unsupported: DESIGN :318 defines no protocol (GAP-10, vic)")
-
 // cmds runs parsed commands. dir is the rooms dir; send delivers invite frames;
 // ends lists the live endpoints a room's members could be; sendCh sends text to
 // a session channel; emit hands messages to the UI.
@@ -86,8 +82,6 @@ func (c *cmds) do(ch string, cm model.Cmd) error {
 		return c.sendCh(t, args[1])
 	case model.CmdNames, model.CmdWho:
 		return c.members(roomArg(args, ch))
-	case model.CmdMode:
-		return errUnsupported
 	}
 	return fmt.Errorf("command %q is not handled here", cm.Name())
 }

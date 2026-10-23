@@ -19,13 +19,12 @@ const (
 	CmdWho    CmdName = "who"
 	CmdNames  CmdName = "names"
 	CmdMsg    CmdName = "msg"
-	CmdMode   CmdName = "mode"
 	CmdQuit   CmdName = "quit"
 )
 
 // CmdWords are the words a / line can start with (completion lists them); rm and q
 // are aliases ParseCmd maps to close and quit.
-var CmdWords = []string{"join", "part", "rm", "close", "invite", "kick", "topic", "who", "names", "msg", "mode", "quit"}
+var CmdWords = []string{"join", "part", "rm", "close", "invite", "kick", "topic", "who", "names", "msg", "quit"}
 
 // Cmd can only be built by ParseCmd.
 type Cmd struct {
@@ -40,7 +39,7 @@ func (c Cmd) Args() []string { return c.args }
 // the line verbatim. ok is false for an unknown name; n < 0 is free-form.
 func arity(n CmdName) (count int, raw, ok bool) {
 	switch n {
-	case CmdJoin, CmdKick, CmdMode:
+	case CmdJoin, CmdKick:
 		return 1, false, true
 	case CmdInvite:
 		return 2, false, true
@@ -95,12 +94,6 @@ func ParseCmd(line string) (Cmd, error) {
 	}
 	if n >= 0 && (len(args) != n || slices.Contains(args, "")) {
 		return Cmd{}, fmt.Errorf("/%s wants %d args, got %d", word, n, len(args))
-	}
-	if len(args) == 1 {
-		switch {
-		case name == CmdMode && args[0] != "bypass" && args[0] != "prompting":
-			return Cmd{}, fmt.Errorf("/mode wants bypass|prompting, got %q", args[0])
-		}
 	}
 	return Cmd{name: name, args: args}, nil
 }
