@@ -14,10 +14,12 @@ import (
 // SessionsMsg replaces the live session list.
 type SessionsMsg []model.Session
 
-// LineMsg appends L to channel Ch; an unknown channel (including "") is reported as a note.
+// LineMsg appends L to channel Ch; an unknown channel (including "") is reported as a
+// note. Old is history replayed at attach: no unread count, no move to the front.
 type LineMsg struct {
-	Ch string
-	L  model.Line
+	Old bool
+	Ch  string
+	L   model.Line
 }
 
 // NoteMsg adds L to the focused channel (producer notes with no channel of their own).
@@ -101,7 +103,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SessionsMsg:
 		a.m = a.m.WithSessions(msg)
 	case LineMsg:
-		if next, err := a.addLine(msg.Ch, msg.L); err == nil {
+		if msg.Old {
+			if m, err := a.m.AddHistory(msg.Ch, msg.L); err == nil {
+				a.m = m
+			}
+		} else if next, err := a.addLine(msg.Ch, msg.L); err == nil {
 			a = next
 		} else {
 			a = a.note("line for unknown channel " + msg.Ch)

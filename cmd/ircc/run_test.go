@@ -511,3 +511,25 @@ func TestSendLiteralHasNoWrapper(t *testing.T) {
 		t.Fatal("literal to a room: want error")
 	}
 }
+
+func TestHistoryReplayedOld(t *testing.T) {
+	f := newFix(t)
+	appendLine(t, f.transcript, "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"from before\"}]}}\n")
+	s := &sink{}
+	r := newRunner(f.claude, "/proc", "vic", s.emit)
+	defer r.close()
+	r.onSnapshot(snapshot(t, f))
+	r.poll()
+	r.poll() // NEG: history comes once
+	appendLine(t, f.transcript, "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"live now\"}]}}\n")
+	r.poll()
+	var got []string
+	for _, m := range s.take() {
+		if lm, ok := m.(ui.LineMsg); ok {
+			got = append(got, fmt.Sprintf("%s old=%v", lm.L.Text, lm.Old))
+		}
+	}
+	if strings.Join(got, "|") != "from before old=true|live now old=false" {
+		t.Fatalf("lines %q", got)
+	}
+}

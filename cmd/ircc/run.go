@@ -51,6 +51,7 @@ func claudeDir() (string, error) {
 type tail struct {
 	t    *transcript.Tailer // used by the poller only
 	mode string             // last permissionMode seen, "" until one is; guarded by runner.mu
+	old  bool               // the first batch is history: shown, not acted on, not unread; poller only
 }
 
 // runner holds the producers' state; emit hands messages to the UI. r.mu guards
@@ -187,38 +188,41 @@ func (r *runner) info() ui.InfoMsg {
 	return info
 }
 
-// seedMode reads the last seedBytes of the transcript at path and returns its
-// last permissionMode ("" if none).
-func seedMode(path string, size int64) string {
+// seed reads the last seedBytes of the transcript at path. It returns the last
+// permissionMode ("" if none) and the offset of the first whole line in that span:
+// the tail starts there, so a channel shows recent history (vic 2026-10-22).
+// On a read error the tail starts at size: no history, mode unknown.
+func seed(path string, size int64) (mode string, start int64) {
 	f, err := os.Open(path)
 	if err != nil {
-		return ""
+		return "", size
 	}
 	defer f.Close()
 	off := max(size-seedBytes, 0)
 	buf := make([]byte, size-off)
 	if _, err := f.ReadAt(buf, off); err != nil && !errors.Is(err, io.EOF) {
-		return ""
+		return "", size
 	}
 	if off > 0 { // the first line is cut: drop it
 		i := 0
 		for i < len(buf) && buf[i] != '\n' {
 			i++
 		}
-		buf = buf[min(i+1, len(buf)):]
+		i = min(i+1, len(buf))
+		buf, off = buf[i:], off+int64(i)
 	}
 	var evs []transcript.Event
-	start := 0
+	from := 0
 	for i, c := range buf {
 		if c != '\n' {
 			continue
 		}
-		if ev, err := transcript.ParseEvent(buf[start:i]); err == nil {
+		if ev, err := transcript.ParseEvent(buf[from:i]); err == nil {
 			evs = append(evs, ev)
 		}
-		start = i + 1
+		from = i + 1
 	}
-	return transcript.LastMode(evs)
+	return transcript.LastMode(evs), off
 }
 
 // attach returns pid's tail, opening it at the end of the transcript (no history
@@ -261,11 +265,12 @@ func (r *runner) open(e registry.Entry) (*tail, error) {
 	if err != nil {
 		return nil, err
 	}
-	tl, err := transcript.Open(p, fi.Size())
+	mode, start := seed(p, fi.Size())
+	tl, err := transcript.Open(p, start)
 	if err != nil {
 		return nil, err
 	}
-	return &tail{t: tl, mode: seedMode(p, fi.Size())}, nil
+	return &tail{t: tl, mode: mode, old: start < fi.Size()}, nil
 }
 
 // poll reads new transcript lines of every live session. A line that does not
@@ -289,6 +294,8 @@ func (r *runner) poll() {
 			continue
 		}
 		lines, err := t.t.Lines()
+		old := t.old
+		t.old = false
 		if errors.Is(err, transcript.ErrTruncated) {
 			r.mu.Lock()
 			delete(r.tails, j.pid) // reattach next poll
@@ -311,12 +318,14 @@ func (r *runner) poll() {
 				}
 				r.mu.Unlock()
 			}
-			r.onEvent(j.pid, ev)
+			if !old { // history must not redo side effects (held lines into room logs)
+				r.onEvent(j.pid, ev)
+			}
 			if ev.Type == "" {
 				continue
 			}
 			for _, l := range blockLines(ev, j.e.Name, r.user) {
-				r.emit(ui.LineMsg{Ch: j.name, L: l})
+				r.emit(ui.LineMsg{Ch: j.name, L: l, Old: old})
 			}
 		}
 	}

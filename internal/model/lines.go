@@ -18,7 +18,13 @@ var (
 // AddLine appends l to channel ch, counting it unread unless ch is focused.
 // The returned Model gives ch its own Ring; m is never modified.
 // shortcut: clone is O(cap) per line, upgrade to persistent ring if cap/rate grows
-func (m Model) AddLine(ch string, l Line) (Model, error) {
+func (m Model) AddLine(ch string, l Line) (Model, error) { return m.add(ch, l, true) }
+
+// AddHistory appends l like AddLine but as history: no unread count, and the
+// channel keeps its place.
+func (m Model) AddHistory(ch string, l Line) (Model, error) { return m.add(ch, l, false) }
+
+func (m Model) add(ch string, l Line, live bool) (Model, error) {
 	for i, c := range m.chans {
 		if c.Name != ch {
 			continue
@@ -26,6 +32,9 @@ func (m Model) AddLine(ch string, l Line) (Model, error) {
 		l.Nick, l.Text = clean(l.Nick), clean(l.Text)
 		c.Lines = c.Lines.clone()
 		c.Lines.Push(l)
+		if !live {
+			return m.withChan(i, c), nil
+		}
 		if i != m.cur {
 			c.Unread++
 		}
