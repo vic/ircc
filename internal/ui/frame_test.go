@@ -244,3 +244,31 @@ func TestStampsToggle(t *testing.T) {
 		t.Fatalf("stamp or nick color missing:\n%s", ansi.Strip(v))
 	}
 }
+
+func TestPicker(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil) // #a #b #c
+	next, _ := a.Update(RoomsMsg{"&handson", "&review"})
+	a, _ = press(t, next.(App), "i")
+	a = typeText(t, a, "half typed")
+	a, _ = press(t, a, "ctrl+t")
+	a = typeText(t, a, "hon") // fuzzy: h..o..n in &handson only
+	v := checkFrame(t, a, 80, 24)
+	if !strings.Contains(ansi.Strip(v), "◆ &handson") || strings.Contains(ansi.Strip(v), "&review") {
+		t.Fatalf("picker:\n%s", ansi.Strip(v))
+	}
+	a, _ = press(t, a, "enter")
+	if a.pick || cur(a) != "&handson" || a.in.Value() != "half typed" {
+		t.Fatalf("enter: pick %v cur %s input %q", a.pick, cur(a), a.in.Value())
+	}
+	a, _ = press(t, a, "ctrl+t", "x", "y", "z", "enter") // NEG: no match, enter stays
+	if a.pick || cur(a) != "&handson" {
+		t.Fatalf("no-match enter: %s", cur(a))
+	}
+	if _, ok := fuzzy("hn", "#handson"); !ok {
+		t.Fatal("subsequence not matched")
+	}
+	if _, ok := fuzzy("nh", "#handson"); ok { // NEG: order matters
+		t.Fatal("out of order matched")
+	}
+}

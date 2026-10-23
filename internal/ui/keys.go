@@ -34,6 +34,7 @@ const (
 	ToggleChat
 	LastChan
 	ToggleStamps
+	PickChan
 )
 
 // maxCountDigits bounds the {n} in {n}gt.
@@ -55,6 +56,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{}, Normal, ""
 		case "enter":
 			return Action{Kind: Send}, Insert, ""
+		case "ctrl+t":
+			return Action{Kind: PickChan}, Insert, ""
 		case "up", "ctrl+p":
 			return Action{Kind: PrevChan}, Insert, ""
 		case "down", "ctrl+n":
@@ -78,6 +81,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{HalfPage, -1}, Normal, ""
 		case "G":
 			return Action{Kind: Bottom}, Normal, ""
+		case "ctrl+t":
+			return Action{Kind: PickChan}, Normal, ""
 		case "ctrl+n", "down":
 			return Action{Kind: NextChan}, Normal, ""
 		case "ctrl+p", "up":

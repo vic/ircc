@@ -312,6 +312,8 @@ var helpSections = []struct {
 }{
 	{"NORMAL", [][2]string{
 		{"up down", "previous / next channel (also ctrl+p ctrl+n, gT gt, {n}gt)"},
+		{"tab", "back to the previous channel"},
+		{"ctrl+t", "fuzzy channel picker"},
 		{"wheel j k", "scroll"},
 		{"ctrl+d ctrl+u", "half page down / up"},
 		{"gg G", "top / bottom"},

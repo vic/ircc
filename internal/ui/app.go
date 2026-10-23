@@ -74,13 +74,16 @@ type App struct {
 	w, h    int
 	prompt  rune // 0, promptCmd or promptSearch: the input line holds a prompt
 	query   string
-	hit     int            // index in the current channel of the last search hit, -1 none
-	offs    map[string]int // per channel: lines scrolled back from the newest
-	help    bool           // the ? popup is shown; the next key closes it
-	prev    string         // channel focused before the current one; tab returns to it
-	stamps  bool           // s: show "15:04 " before each line
-	tools   bool           // t: show tool lines
-	chat    bool           // c: show only Chat lines (replies, rooms, own lines)
+	hit     int             // index in the current channel of the last search hit, -1 none
+	offs    map[string]int  // per channel: lines scrolled back from the newest
+	help    bool            // the ? popup is shown; the next key closes it
+	prev    string          // channel focused before the current one; tab returns to it
+	stamps  bool            // s: show "15:04 " before each line
+	pick    bool            // ctrl+t: the channel picker is open
+	pq      textinput.Model // picker query (own input: a typed message survives)
+	psel    int             // picker selection, an index in pickList
+	tools   bool            // t: show tool lines
+	chat    bool            // c: show only Chat lines (replies, rooms, own lines)
 }
 
 // New returns an App over m that sends channel text through send.
@@ -157,6 +160,9 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if k == "ctrl+c" {
 		return a, tea.Quit
 	}
+	if a.pick {
+		return a.pickKey(msg)
+	}
 	if a.help {
 		a.help = false
 		return a, nil
@@ -178,6 +184,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return a, cmd
 		case act.Kind == Scroll:
 			return a.scroll(act), nil
+		case act.Kind == PickChan:
+			return a.openPick(), nil
 		case act.Kind == NextChan || act.Kind == PrevChan:
 			return a.switchChan(act), nil
 		}
@@ -210,6 +218,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.help = true
 	case ToggleStamps:
 		a.stamps, a.offs = !a.stamps, nil // row counts changed
+	case PickChan:
+		return a.openPick(), nil
 	case LastChan:
 		a = a.focusName(a.prev)
 	case NextChan, PrevChan, GotoChan:
@@ -341,7 +351,9 @@ func (a App) inputLine() (label, input string) {
 	case a.mode == Insert:
 		return "INSERT", a.in.Value()
 	}
-	return "NORMAL", keyHint("?", "help", "i", "type", ":", "literal", "t", "tools "+onOff(a.tools), "c", "chat only "+onOff(a.chat))
+	// one row only: a hint never takes rows from the lines pane; most useful keys first
+	return "NORMAL", fit(cell, keyHint("C-n/C-p ↑↓", "channel", "tab", "last", "C-t", "pick", "i", "type", ":", "literal", "?", "help",
+		"t", "tools:"+onOff(a.tools), "c", "chat:"+onOff(a.chat), "s", "time:"+onOff(a.stamps)), max(a.w-2, 1))
 }
 
 // View is the full-screen frame; screen is its text.
@@ -355,6 +367,9 @@ func (a App) View() tea.View {
 func (a App) screen() string {
 	if a.help {
 		return helpView(a.w, a.h)
+	}
+	if a.pick {
+		return pickView(a.w, a.h, a.pq.Value(), pickList(a.chanNames(), a.pq.Value()), a.psel)
 	}
 	label, input := a.inputLine()
 	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, chanNicks(a.m.Current(), a.user), a.lines(a.m.Current()), a.wrap())
@@ -491,4 +506,43 @@ func (a App) wrap() wrapFunc {
 		return wrapStamped
 	}
 	return wrapLine
+}
+
+func (a App) chanNames() []string {
+	var out []string
+	for _, c := range a.m.Channels() {
+		out = append(out, c.Name)
+	}
+	return out
+}
+
+func (a App) openPick() App {
+	a.pick, a.psel, a.pq = true, 0, textinput.New()
+	a.pq.Prompt = ""
+	a.pq.Focus()
+	return a
+}
+
+// pickKey runs one key in the open picker: enter goes to the selected channel.
+func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	ms := pickList(a.chanNames(), a.pq.Value())
+	switch msg.String() {
+	case "esc":
+		a.pick = false
+	case "enter":
+		if a.psel < len(ms) {
+			a = a.focusName(ms[a.psel].name)
+		}
+		a.pick = false
+	case "up", "ctrl+p":
+		a.psel = max(a.psel-1, 0)
+	case "down", "ctrl+n":
+		a.psel = max(min(a.psel+1, len(ms)-1), 0)
+	default:
+		var cmd tea.Cmd
+		a.pq, cmd = a.pq.Update(msg)
+		a.psel = 0 // a new query starts at its best match
+		return a, cmd
+	}
+	return a, nil
 }

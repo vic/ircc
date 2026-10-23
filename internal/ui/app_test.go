@@ -23,6 +23,7 @@ var special = map[string]tea.KeyPressMsg{
 	"down":   {Code: tea.KeyDown},
 	"ctrl+n": {Code: 'n', Mod: tea.ModCtrl},
 	"ctrl+p": {Code: 'p', Mod: tea.ModCtrl},
+	"ctrl+t": {Code: 't', Mod: tea.ModCtrl},
 }
 
 type sent struct{ ch, text string }
