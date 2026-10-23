@@ -863,3 +863,18 @@ func TestNormalEscClearsSelectionAndInput(t *testing.T) {
 		t.Fatalf("hit %d input %q quote %v mode %v", a.hit, a.in.Value(), a.quote, a.mode)
 	}
 }
+
+func TestShellPromptRunsLocally(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	next, _ := a.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	a, _ = press(t, next.(App), "$")
+	a = typeText(t, a, "ls")
+	if v := ansi.Strip(checkFrame(t, a, 120, 30)); !strings.Contains(v, "$ ls") {
+		t.Fatalf("no $ prompt:\n%s", v)
+	}
+	a, cmd := press(t, a, "enter")
+	if a.prompt != 0 || cmd == nil || len(log) != 0 { // runs locally: not sent to the session
+		t.Fatalf("enter: prompt %q cmd %v sent %d", a.prompt, cmd != nil, len(log))
+	}
+}

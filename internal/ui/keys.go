@@ -27,6 +27,7 @@ const (
 	PrevChan
 	GotoChan
 	CmdLine
+	ShellLine
 	Send
 	Complete
 	Help
@@ -130,6 +131,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: Help}, Normal, ""
 		case ":":
 			return Action{Kind: CmdLine}, Normal, ""
+		case "$":
+			return Action{Kind: ShellLine}, Normal, ""
 		case "g":
 			return Action{}, Normal, "g"
 		}

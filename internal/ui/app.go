@@ -77,6 +77,7 @@ type CmdMsg struct{ Cmd model.Cmd }
 const (
 	defaultW, defaultH = 80, 24
 	promptCmd          = ':'
+	promptShell        = '$'
 
 	wheelRows = 3 // rows one wheel notch scrolls
 )
@@ -178,9 +179,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			a = a.note("literal send failed: " + msg.Err.Error())
 		}
-	case editDoneMsg:
+	case execDoneMsg:
 		if msg.Err != nil {
-			a = a.note("editor failed: " + msg.Err.Error())
+			a = a.note(msg.What + " failed: " + msg.Err.Error())
 		}
 	case SendResultMsg:
 		a = a.sent(msg)
@@ -331,6 +332,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch act.Kind {
 	case CmdLine:
 		return a.openPrompt(promptCmd), nil
+	case ShellLine:
+		return a.openPrompt(promptShell), nil
 	case Scroll, HalfPage, Top, Bottom:
 		a = a.scroll(act)
 	case ToggleTools, ToggleMentions:
@@ -384,9 +387,13 @@ func (a App) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		a, _ = a.closePrompt()
 	case "enter":
+		kind := a.prompt
 		var v string
 		a, v = a.closePrompt()
-		return a.sendLiteral(v) // the only prompt is :
+		if kind == promptShell {
+			return a.runShell(v)
+		}
+		return a.sendLiteral(v) // : sends as is
 	default:
 		var cmd tea.Cmd
 		a.in, cmd = a.in.Update(msg)
@@ -490,6 +497,8 @@ func (a App) inputLine() (label, input, hint string) {
 	switch {
 	case a.prompt == promptCmd:
 		return "NORMAL", ":" + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send as is", "esc", "cancel")
+	case a.prompt == promptShell:
+		return "NORMAL", "$ " + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "run locally", "esc", "cancel")
 	case a.mode == Insert:
 		prompt := "> "
 		if a.quote != nil { // RE: while replying; the quote is dropped once the input is empty
@@ -508,7 +517,7 @@ func (a App) inputLine() (label, input, hint string) {
 	case a.focus == focusNicks:
 		return "NICKS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "mention", "tab", "chat", "esc", "chat")
 	}
-	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "pick", "i", "type", "?", "help")
+	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "pick", "i", "type", "?", "help", "$", "shell")
 }
 
 // footer is the last row outside INSERT: more keys and the toggle states, since
@@ -1117,11 +1126,29 @@ func (a App) openTarget(path, cmd string) (App, tea.Cmd) {
 		path = filepath.Join(a.m.Current().Cwd, path)
 	}
 	argv := append(strings.Fields(cmp.Or(strings.TrimSpace(os.Getenv("EDITOR")), "vi")), path)
-	return a, tea.ExecProcess(exec.Command(argv[0], argv[1:]...), func(err error) tea.Msg { return editDoneMsg{err} })
+	return a, tea.ExecProcess(exec.Command(argv[0], argv[1:]...), execDone("editor"))
 }
 
-// editDoneMsg reports that $EDITOR exited; Err is nil on a clean exit.
-type editDoneMsg struct{ Err error }
+// runShell runs cmd with sh -c, suspending the app. It waits for Enter before the
+// app comes back, so the output stays readable (vic 2026-10-23, like jjui $).
+func (a App) runShell(cmd string) (App, tea.Cmd) {
+	if strings.TrimSpace(cmd) == "" {
+		return a, nil
+	}
+	script := cmd + "\necho; echo 'press enter to return'; read _"
+	return a, tea.ExecProcess(exec.Command("sh", "-c", script), execDone("command"))
+}
+
+// execDoneMsg reports that a suspended process exited; Err is nil on a clean exit.
+type execDoneMsg struct {
+	What string
+	Err  error
+}
+
+// execDone is the callback for tea.ExecProcess that reports the exit as an execDoneMsg.
+func execDone(what string) func(error) tea.Msg {
+	return func(err error) tea.Msg { return execDoneMsg{What: what, Err: err} }
+}
 
 // lineAt is the shown line of lines-pane row i, as render draws it, and the row's plain text.
 func (a App) lineAt(i int) (model.Line, string, bool) {
