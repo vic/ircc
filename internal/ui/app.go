@@ -113,6 +113,7 @@ type App struct {
 	toasts   []toast         // notification cards, newest last; the tick drops old ones
 	helpOff  int             // help box scroll (j k, wheel) when it is taller than the screen
 	pq       textinput.Model // picker query (own input: a typed message survives)
+	files    []string        // pickFiles: the session's files, from git ls-files (filesMsg)
 	psel     int             // picker selection, an index in pickList
 	comp     completion      // tab completion state of the INSERT line
 	tools    bool            // t: show tool lines
@@ -175,6 +176,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		now := a.now()
 		a.toasts = slices.DeleteFunc(slices.Clone(a.toasts), func(t toast) bool { return now.Sub(t.at) >= toastFor })
 		return a, tick()
+	case filesMsg:
+		a.files = msg
 	case LiteralResultMsg:
 		if msg.Err != nil {
 			a = a.note("literal send failed: " + msg.Err.Error())
@@ -283,6 +286,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return a.lineStep(act.Kind == LineDown), nil
 		case act.Kind == PickChan:
 			return a.openPick(pickChans), nil
+		case act.Kind == PickFile:
+			return a.openFilePick()
 		case act.Kind == NextChan || act.Kind == PrevChan:
 			return a.switchChan(act), nil
 		}
@@ -355,6 +360,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a.openPick(pickSpeakers), nil
 	case PickChan:
 		return a.openPick(pickChans), nil
+	case PickFile:
+		return a.openFilePick()
 	case LineUp, LineDown:
 		a = a.lineStep(act.Kind == LineDown)
 	case NextTurn, PrevTurn:
@@ -386,6 +393,8 @@ func (a App) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		a, _ = a.closePrompt()
+	case "ctrl+t": // the file finder fills the prompt with a path
+		return a.openFilePick()
 	case "enter":
 		kind := a.prompt
 		var v string
@@ -507,7 +516,7 @@ func (a App) inputLine() (label, input, hint string) {
 		if u := a.cmdUsage(); u != "" { // typing a /command: its usage is the hint (vic 2026-10-23)
 			return "INSERT", prompt + withCursor(a.in.Value(), a.in.Position()), u
 		}
-		hint := keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-o", "pick", "esc", "normal")
+		hint := keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "files", "C-o", "pick", "esc", "normal")
 		if a.quote != nil { // the replied-to line is shown here, not in the input
 			hint = keyHint("re", "<"+a.quote.Nick+"> "+a.quote.Text) + "   " + hint
 		}
@@ -517,7 +526,7 @@ func (a App) inputLine() (label, input, hint string) {
 	case a.focus == focusNicks:
 		return "NICKS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "mention", "tab", "chat", "esc", "chat")
 	}
-	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-o", "pick", "i", "type", "?", "help", "$", "shell")
+	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "files", "C-o", "pick", "i", "type", "?", "help", "$", "shell")
 }
 
 // footer is the last row outside INSERT: more keys and the toggle states, since
@@ -543,7 +552,7 @@ func (a App) screen() string {
 	case a.help:
 		return overlayCentered(screen, a.w, a.h, helpBox(a.h, a.helpOff))
 	case a.pick:
-		what := [...]string{pickChans: "channel / @nick", pickLines: "search", pickSpeakers: "speaker", pickInvite: "invite to " + a.m.Current().Name}[a.pickWhat]
+		what := [...]string{pickChans: "channel / @nick", pickLines: "search", pickSpeakers: "speaker", pickInvite: "invite to " + a.m.Current().Name, pickFiles: "file"}[a.pickWhat]
 		return overlayCentered(screen, a.w, a.h, pickBox(a.w, a.h, what, a.pq.Value(), pickList(a.pickSource(), a.pq.Value()), a.psel))
 	}
 	return screen
@@ -731,6 +740,7 @@ const (
 	pickLines                    // /: the current channel's shown lines; enter jumps
 	pickSpeakers                 // S: who spoke here; enter shows only that nick (vic 2026-10-23)
 	pickInvite                   // I: who can be invited to this room; enter invites (vic 2026-10-23)
+	pickFiles                    // ctrl+t: the session's files; enter inserts the path
 )
 
 // allSpeakers is the speaker picker's first entry: it clears the filter.
@@ -769,6 +779,8 @@ func (a App) pickSource() []string {
 		for _, l := range a.lines(a.m.Current()) {
 			out = append(out, "<"+l.Nick+"> "+l.Text)
 		}
+	case pickFiles:
+		out = a.files
 	case pickInvite: // every session's main agent and its agents as agent@session, minus members
 		cur := a.m.Current()
 		for _, c := range a.m.Channels() {
@@ -807,7 +819,14 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		a.pick = false
 	case "enter":
-		if a.psel < len(ms) && a.pickWhat == pickInvite {
+		if a.psel < len(ms) && a.pickWhat == pickFiles {
+			if a.prompt == 0 { // a : or $ prompt keeps its own mode
+				a.mode = Insert
+			}
+			a.in.SetValue(a.in.Value() + ms[a.psel].name + " ")
+			a.in.CursorEnd()
+			a.in.Focus()
+		} else if a.psel < len(ms) && a.pickWhat == pickInvite {
 			a.pick = false
 			return a.runCmd("/invite " + ms[a.psel].name + " " + a.m.Current().Name)
 		}
@@ -1275,4 +1294,13 @@ func (a App) cmdUsage() string {
 		us[i] = shortcut.Render(u)
 	}
 	return dimmed.Render("usage ") + strings.Join(us, dimmed.Render("  ·  "))
+}
+
+// filesMsg is the session's file list for the file finder.
+type filesMsg []string
+
+// openFilePick opens the file finder; the list comes from git in the session's directory.
+func (a App) openFilePick() (App, tea.Cmd) {
+	cwd := a.m.Current().Cwd
+	return a.openPick(pickFiles), func() tea.Msg { return filesMsg(listFiles(cwd)) }
 }

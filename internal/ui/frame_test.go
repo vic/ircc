@@ -878,3 +878,28 @@ func TestShellPromptRunsLocally(t *testing.T) {
 		t.Fatalf("enter: prompt %q cmd %v sent %d", a.prompt, cmd != nil, len(log))
 	}
 }
+
+func TestFileFinderInsertsPath(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	a, _ = a.openFilePick()
+	a.files = []string{"internal/ui/app.go", "README.md"}
+	a = typeText(t, a, "app")
+	a, _ = press(t, a, "enter")
+	if a.pick || a.in.Value() != "internal/ui/app.go " || len(log) != 0 { // the path, not its content; nothing sent
+		t.Fatalf("enter: pick %v input %q sent %d", a.pick, a.in.Value(), len(log))
+	}
+}
+
+func TestFileFinderFromPrompt(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	a, _ = press(t, a, ":")
+	a, _ = a.openFilePick()
+	a.files = []string{"README.md"}
+	a = typeText(t, a, "read")
+	a, _ = press(t, a, "enter")
+	if a.pick || a.prompt != promptCmd || a.in.Value() != "README.md " || a.mode != Normal || len(log) != 0 {
+		t.Fatalf("pick %v prompt %q input %q mode %v sent %d", a.pick, a.prompt, a.in.Value(), a.mode, len(log))
+	}
+}

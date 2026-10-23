@@ -30,7 +30,7 @@ func fuzzy(q, s string) (pickMatch, bool) {
 		if n := len(m.at); n > 0 && m.at[n-1] == i-1 {
 			m.score += 3
 		}
-		if i == 0 || strings.ContainsRune("#&-_.~", rs[i-1]) || unicode.IsSpace(rs[i-1]) {
+		if i == 0 || strings.ContainsRune("#&-_./~", rs[i-1]) || unicode.IsSpace(rs[i-1]) {
 			m.score += 5
 		}
 		m.at = append(m.at, i)

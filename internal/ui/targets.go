@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -75,4 +77,16 @@ func byteAt(s string, col int) int {
 		at = b
 	}
 	return at
+}
+
+// listFiles is the tracked and untracked, not ignored, files under dir as git prints
+// them (relative to dir). Outside a git repo there are none.
+func listFiles(dir string) []string {
+	cmd := exec.Command("git", "ls-files", "-co", "--exclude-standard", "-z")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	return slices.DeleteFunc(strings.Split(string(out), "\x00"), func(s string) bool { return s == "" })
 }

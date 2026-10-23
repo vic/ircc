@@ -40,6 +40,7 @@ const (
 	LineDown
 	ToggleStamps
 	PickChan
+	PickFile
 	PickSpeaker
 	Yank
 	PickInvite
@@ -68,6 +69,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: Send}, Insert, ""
 		case "ctrl+o":
 			return Action{Kind: PickChan}, Insert, ""
+		case "ctrl+t":
+			return Action{Kind: PickFile}, Insert, ""
 		case "up":
 			return Action{Kind: LineUp}, Insert, ""
 		case "down":
@@ -101,6 +104,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: Bottom}, Normal, ""
 		case "ctrl+o":
 			return Action{Kind: PickChan}, Normal, ""
+		case "ctrl+t":
+			return Action{Kind: PickFile}, Normal, ""
 		case "S":
 			return Action{Kind: PickSpeaker}, Normal, ""
 		case "y":

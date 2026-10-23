@@ -422,6 +422,7 @@ var helpSections = []struct {
 		{"ctrl+n ctrl+p", "next / previous channel (also gt gT, {n}gt)"},
 		{"tab", "focus channels, then nicks: type to filter, enter joins / mentions"},
 		{"ctrl+o", "fuzzy picker: channels, and @nicks to mention"},
+		{"ctrl+t", "fuzzy file finder: enter inserts the path"},
 		{"wheel j k", "scroll"},
 		{"J K", "next / previous speaker change"},
 		{"S", "show only one speaker (fuzzy pick; (all) clears)"},
