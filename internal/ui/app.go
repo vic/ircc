@@ -34,6 +34,12 @@ type RoomsMsg []string
 // LiteralResultMsg reports a finished : send; Err is nil on success.
 type LiteralResultMsg struct{ Err error }
 
+// ToastMsg shows Text as a notification card; Err makes it red.
+type ToastMsg struct {
+	Text string
+	Err  bool
+}
+
 // FocusMsg makes channel Ch current (after /join).
 type FocusMsg string
 
@@ -152,6 +158,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.cmdf(a.m.Current().Name, msg.Cmd)
 	case NoteMsg:
 		a = a.toast(msg.L.Text, false) // runtime notes are notifications, not scrollback
+	case ToastMsg:
+		a = a.toast(msg.Text, msg.Err)
 	case tickMsg:
 		now := a.now()
 		a.toasts = slices.DeleteFunc(slices.Clone(a.toasts), func(t toast) bool { return now.Sub(t.at) >= toastFor })

@@ -162,3 +162,29 @@ func TestToolArg(t *testing.T) {
 		t.Fatalf("args %q", got)
 	}
 }
+
+func TestNotices(t *testing.T) {
+	for _, c := range []struct {
+		line, text  string
+		err, blocks bool
+	}{
+		{`{"type":"attachment","attachment":{"type":"goal_status","met":true,"condition":"ship it"}}`, "goal met: ship it", false, false},
+		{`{"type":"attachment","attachment":{"type":"hook_blocking_error","hookEvent":"Stop","blockingError":{"blockingError":"update HANDOFF"}}}`, "Stop hook: update HANDOFF", true, false},
+		{`{"type":"user","message":{"content":"PreToolUse:Bash hook error: refused"}}`, "PreToolUse:Bash hook error: refused", true, false},
+		{`{"type":"user","message":{"content":"Stop hook feedback:\nupdate HANDOFF"}}`, "", false, false}, // shown by the attachment
+		{`{"type":"user","message":{"content":"a hook error: is just words"}}`, "", false, true},          // NEG: plain text
+		{`{"type":"attachment","attachment":{"type":"hook_success"}}`, "", false, false},                  // NEG: too frequent to toast
+	} {
+		ev, err := ParseEvent([]byte(c.line))
+		if err != nil {
+			t.Fatal(err)
+		}
+		text, isErr := "", false
+		if ev.Notice != nil {
+			text, isErr = ev.Notice.Text, ev.Notice.Err
+		}
+		if text != c.text || isErr != c.err || (len(ev.Blocks) > 0) != c.blocks {
+			t.Errorf("%s: notice %q err %v blocks %d", c.line, text, isErr, len(ev.Blocks))
+		}
+	}
+}

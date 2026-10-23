@@ -332,6 +332,9 @@ func (r *runner) poll() {
 				}
 				r.mu.Unlock()
 			}
+			if ev.Notice != nil && !old { // hook errors, goal status: a toast, never replayed
+				r.emit(ui.ToastMsg{Text: j.name + ": " + ev.Notice.Text, Err: ev.Notice.Err})
+			}
 			if !old { // history must not redo side effects (held lines into room logs)
 				r.onEvent(j.pid, ev)
 			}

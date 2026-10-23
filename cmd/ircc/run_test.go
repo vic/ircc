@@ -654,3 +654,25 @@ func TestAgentsMsgMergesSameNick(t *testing.T) {
 	}
 	t.Fatal("no AgentsMsg")
 }
+
+func TestNoticeToast(t *testing.T) {
+	f := newFix(t)
+	goal := `{"type":"attachment","attachment":{"type":"goal_status","met":true,"condition":"ship"}}` + "\n"
+	appendLine(t, f.transcript, goal) // history: no toast
+	s := &sink{}
+	r := newRunner(f.claude, "/proc", "vic", s.emit)
+	defer r.close()
+	r.onSnapshot(snapshot(t, f))
+	r.poll()
+	appendLine(t, f.transcript, goal) // live: a toast
+	r.poll()
+	var got []string
+	for _, m := range s.take() {
+		if tm, ok := m.(ui.ToastMsg); ok {
+			got = append(got, tm.Text)
+		}
+	}
+	if strings.Join(got, "|") != "#alpha: goal met: ship" {
+		t.Fatalf("toasts %q", got)
+	}
+}

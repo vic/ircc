@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -20,6 +21,7 @@ type Event struct {
 	HeldPreview    string  // text inside «...» (D:105); match the fanned line by prefix
 	Blocks         []Block // assistant/user message content (measured shapes)
 	Done           bool    // assistant turn ended (stop_reason end_turn): the agent is idle
+	Notice         *Notice // hook errors and goal status: shown as a toast, not a line
 }
 
 type rawEvent struct {
@@ -34,6 +36,15 @@ type rawEvent struct {
 		Content    json.RawMessage `json:"content"`
 		StopReason string          `json:"stop_reason"`
 	} `json:"message"`
+	Attachment *struct {
+		Type          string `json:"type"`
+		Met           bool   `json:"met"`
+		Condition     string `json:"condition"`
+		HookEvent     string `json:"hookEvent"`
+		BlockingError struct {
+			BlockingError string `json:"blockingError"`
+		} `json:"blockingError"`
+	} `json:"attachment"`
 }
 
 const (
@@ -60,6 +71,12 @@ func ParseEvent(line []byte) (Event, error) {
 			return Event{}, err
 		}
 		e.Blocks = bs
+	}
+	if n, only := r.notice(e.Blocks); n != nil || only {
+		e.Notice = n
+		if only {
+			e.Blocks = nil
+		}
 	}
 	if r.Type == "system" && r.Subtype == "informational" && r.Level == "warning" && strings.HasPrefix(r.Content, heldPrefix) {
 		// Fail loud: a held line that cannot be attributed (from, pid, preview) is an error,
@@ -183,4 +200,44 @@ func toolArg(in map[string]json.RawMessage) string {
 		}
 	}
 	return ""
+}
+
+// Notice is an event ircc shows as a toast (vic 2026-10-23). Measured 2026-10-23:
+// attachments goal_status {met, condition} and hook_blocking_error {hookEvent,
+// blockingError.blockingError}; user text "<Event>[:<Tool>] hook error: ...".
+type Notice struct {
+	Text string
+	Err  bool
+}
+
+// hookErrRE is user text Claude records for a failed hook, e.g. "PreToolUse:Bash hook error: ...".
+var hookErrRE = regexp.MustCompile(`^(PreToolUse|PostToolUse|Stop|SubagentStop|SessionStart|SessionEnd|UserPromptSubmit|Notification|PreCompact)(:[A-Za-z_]+)? hook error: `)
+
+// stopFeedback opens the user text that repeats a hook_blocking_error attachment.
+const stopFeedback = "Stop hook feedback:"
+
+// notice reads the toast an event carries, if any, and reports whether the event's
+// own blocks are only that notice (then they are not shown as lines).
+func (r rawEvent) notice(blocks []Block) (*Notice, bool) {
+	if a := r.Attachment; r.Type == "attachment" && a != nil {
+		switch a.Type {
+		case "goal_status":
+			if a.Met {
+				return &Notice{Text: "goal met: " + a.Condition}, false
+			}
+			return &Notice{Text: "goal not met yet: " + a.Condition}, false
+		case "hook_blocking_error":
+			return &Notice{Text: a.HookEvent + " hook: " + a.BlockingError.BlockingError, Err: true}, false
+		}
+	}
+	if r.Type != "user" || len(blocks) != 1 || blocks[0].Kind != TextBlock {
+		return nil, false
+	}
+	switch t := blocks[0].Text; {
+	case hookErrRE.MatchString(t):
+		return &Notice{Text: t, Err: true}, true
+	case strings.HasPrefix(t, stopFeedback):
+		return nil, true // the hook_blocking_error attachment already toasts it
+	}
+	return nil, false
 }
