@@ -505,7 +505,7 @@ func (a App) toast(text string, err bool) App {
 func (a App) inputLine() (label, input, hint string) {
 	switch {
 	case a.prompt == promptCmd:
-		return "NORMAL", ":" + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send as is", "esc", "cancel")
+		return "NORMAL", ": " + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send as is", "esc", "cancel")
 	case a.prompt == promptShell:
 		return "NORMAL", "$ " + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "run locally", "esc", "cancel")
 	case a.mode == Insert:

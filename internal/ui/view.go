@@ -267,6 +267,10 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 			r = prompt.Render(">") + after
 		} else if after, ok := strings.CutPrefix(r, "RE:"); ok { // a reply prompt is the same color
 			r = prompt.Render("RE:") + after
+		} else if after, ok := strings.CutPrefix(r, "$ "); ok { // the $ and : prompts match the chat prompt
+			r = prompt.Render("$") + " " + after
+		} else if after, ok := strings.CutPrefix(r, ": "); ok {
+			r = prompt.Render(":") + " " + after
 		}
 		rows = append(rows, fit(cell, r, w))
 	}
