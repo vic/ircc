@@ -386,14 +386,20 @@ func (a App) inputLine() (label, input, hint string) {
 	case a.prompt == promptCmd:
 		return "NORMAL", ":" + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send as is", "esc", "cancel")
 	case a.mode == Insert:
-		return "INSERT", withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "pick", "esc", "normal")
+		return "INSERT", "> " + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "pick", "esc", "normal")
 	case a.focus == focusChans:
-		return "CHANNELS", "", keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "join", "tab", "nicks", "esc", "chat")
+		return "CHANNELS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "join", "tab", "nicks", "esc", "chat")
 	case a.focus == focusNicks:
-		return "NICKS", "", keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "mention", "tab", "chat", "esc", "chat")
+		return "NICKS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "mention", "tab", "chat", "esc", "chat")
 	}
-	return "NORMAL", "", keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "pick", "i", "type", ":", "literal", "?", "help",
-		"t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps))
+	return "NORMAL", a.footer(), keyHint("↑↓", "line", "C-n/C-p", "channel", "tab", "panes", "C-t", "pick", "i", "type", "?", "help")
+}
+
+// footer is the last row outside INSERT: more keys and the toggle states, since
+// there is no input to show (vic 2026-10-23).
+func (a App) footer() string {
+	return fit(cell, " "+keyHint("/", "search", "J K", "speaker", "O", "reply @", ":", "literal", "g G", "top bottom",
+		"t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps)), max(a.w, 1)) // one row
 }
 
 // View is the full-screen frame; screen is its text.

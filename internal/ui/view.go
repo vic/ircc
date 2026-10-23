@@ -85,10 +85,10 @@ func paneRows(w, h, in int) int {
 	return max(h-2-in, 1) // title, modeline, input
 }
 
-// inputRows is "> input" wrapped to w columns: the last rows, at most a third of h,
+// inputRows is the input row text (with its prompt) wrapped to w columns: the last rows, at most a third of h,
 // so the end being typed stays visible.
 func inputRows(input string, w, h int) []string {
-	rs := strings.Split(lipgloss.NewStyle().Width(max(w, 1)).Render("> "+input), "\n")
+	rs := strings.Split(lipgloss.NewStyle().Width(max(w, 1)).Render(input), "\n")
 	if k := max(h/3, 1); len(rs) > k {
 		rs = rs[len(rs)-k:]
 	}
@@ -168,7 +168,7 @@ func View(m model.Model, ml model.Modeline, input string, w, h, off, hit int) st
 	for _, c := range m.Channels() {
 		names = append(names, c.Name)
 	}
-	return render(m, ml, input, w, h, off, hit, sidePanes{chans: names, nicks: memberNicks(cur)}, cur.Lines.All(), wrapLine, nil, "")
+	return render(m, ml, "> "+input, w, h, off, hit, sidePanes{chans: names, nicks: memberNicks(cur)}, cur.Lines.All(), wrapLine, nil, "")
 }
 
 // render is View with the nick pane given as nicks and the shown lines of the current channel.

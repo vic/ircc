@@ -546,3 +546,21 @@ func TestInputCursor(t *testing.T) {
 	}
 	checkFrame(t, a, a.w, a.h)
 }
+
+func TestPromptOnlyInInsert(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	last := func(a App) string { rs := strings.Split(ansi.Strip(a.screen()), "\n"); return rs[len(rs)-1] }
+	if l := last(a); strings.HasPrefix(l, ">") || !strings.Contains(l, "J K speaker") || !strings.Contains(l, "tools:off") {
+		t.Fatalf("normal last row %q", l)
+	}
+	a, _ = press(t, a, "i")
+	if l := last(a); !strings.HasPrefix(l, "> ") {
+		t.Fatalf("insert last row %q", l)
+	}
+	a, _ = press(t, a, "esc", ":")
+	if l := last(a); !strings.HasPrefix(l, ":") {
+		t.Fatalf(": last row %q", l)
+	}
+	checkFrame(t, a, a.w, a.h)
+}
