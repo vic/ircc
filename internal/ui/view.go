@@ -34,7 +34,7 @@ var (
 	unread      = fg("3").Bold(true)
 	roomName    = fg("13")
 	alert       = fg("9").Bold(true)
-	current     = cell.Reverse(true)                                                               // search hit
+	current     = cell.Background(lipgloss.Color("236"))                                           // selected line and search hit: dark, not white
 	selected    = cell.Bold(true).Background(lipgloss.Color("8")).Foreground(lipgloss.Color("15")) // current channel
 	helpHead    = fg("2").Bold(true)
 	// nickColors leaves out red (bypass) and gray (dim lines).
@@ -422,7 +422,8 @@ var helpSections = []struct {
 		{"ctrl+d ctrl+u", "half page down / up"},
 		{"gg G", "top / bottom"},
 		{"/ n N", "search, next hit, previous hit"},
-		{"i a A o", "type a message"},
+		{"i a o", "type a message"},
+		{"A", "reply to the selected line (quoted), else type a message"},
 		{"I", "invite someone to this room (fuzzy pick)"},
 		{"O", "type a reply to the last @mentioned nick"},
 		{":", "send a line as is to the session (e.g. /compact)"},

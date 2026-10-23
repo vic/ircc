@@ -130,11 +130,11 @@ func TestViewHitReversed(t *testing.T) {
 		t.Fatal("row not found")
 		return ""
 	}
-	if !strings.Contains(row(1), "\x1b[7m") {
-		t.Fatal("hit line is not reversed")
+	if !strings.Contains(row(1), "\x1b[48;5;236m") {
+		t.Fatal("hit line is not highlighted")
 	}
 	for _, hit := range []int{-1, 0, 99} { // NEG: no hit, other line, out of range
-		if strings.Contains(row(hit), "\x1b[7m") {
+		if strings.Contains(row(hit), "\x1b[48;5;236m") {
 			t.Fatalf("hit %d reversed line 1", hit)
 		}
 	}
@@ -219,12 +219,12 @@ func TestViewWrapCountsRowsForScrollAndHit(t *testing.T) {
 	// hit reverses every row of the wrapped line
 	n := 0
 	for _, r := range strings.Split(View(m, ml, "", 80, 7, 1, 1), "\n") {
-		if strings.Contains(r, "word") && strings.Contains(r, "\x1b[7m") {
+		if strings.Contains(r, "word") && strings.Contains(r, "\x1b[48;5;236m") {
 			n++
 		}
 	}
 	if n < 2 {
-		t.Fatalf("hit reversed %d wrapped rows, want all (>=2)", n)
+		t.Fatalf("hit highlighted %d wrapped rows, want all (>=2)", n)
 	}
 }
 

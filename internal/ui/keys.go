@@ -43,6 +43,7 @@ const (
 	Yank
 	PickInvite
 	ReplyMention
+	ReplySelected
 )
 
 // maxCountDigits bounds the {n} in {n}gt.
@@ -81,8 +82,10 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 	}
 	if pending == "" {
 		switch k {
-		case "i", "a", "A", "o":
+		case "i", "a", "o":
 			return Action{}, Insert, ""
+		case "A":
+			return Action{Kind: ReplySelected}, Insert, ""
 		case "O":
 			return Action{Kind: ReplyMention}, Insert, ""
 		case "j":

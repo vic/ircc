@@ -300,6 +300,17 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				a.in.CursorEnd()
 			}
 		}
+		if act.Kind == ReplySelected { // A: reply to the selected line, else to the last one, which gets selected
+			if ls := a.lines(a.m.Current()); len(ls) > 0 {
+				if a.hit < 0 || a.hit >= len(ls) {
+					a.hit = len(ls) - 1
+				}
+				if l := ls[a.hit]; l.Nick != "" && l.Nick != a.user {
+					a = a.mention(l.Nick)
+					a.quote = &l
+				}
+			}
+		}
 	}
 	switch act.Kind {
 	case CmdLine:
@@ -489,7 +500,7 @@ func (a App) inputLine() (label, input, hint string) {
 func (a App) footer() string {
 	// states first: on a narrow screen the keys fall off the end (they are in ? help)
 	return fit(cell, " "+keyHint("t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps),
-		"S", "speaker:"+cmp.Or(a.speaker, "all"), "/", "search", "J K", "turns", "O", "reply @", ":", "literal"), max(a.w, 1)) // one row
+		"S", "speaker:"+cmp.Or(a.speaker, "all"), "/", "search", "J K", "turns", "A", "reply @", ":", "literal"), max(a.w, 1)) // one row
 }
 
 // View is the full-screen frame; screen is its text.

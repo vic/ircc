@@ -365,7 +365,7 @@ func TestAppSearchHitDisplayed(t *testing.T) {
 	hasRev := func() bool {
 		for _, r := range strings.Split(a.screen(), "\n") {
 			if strings.Contains(r, "needle one") {
-				return strings.Contains(r, "\x1b[7m")
+				return strings.Contains(r, "\x1b[48;5;236m")
 			}
 		}
 		t.Fatal("line not on screen")
@@ -378,7 +378,7 @@ func TestAppSearchHitDisplayed(t *testing.T) {
 	a = typeText(t, a, "needle")
 	a, _ = press(t, a, "enter")
 	if !hasRev() {
-		t.Fatal("hit line not reversed")
+		t.Fatal("hit line not highlighted")
 	}
 }
 
