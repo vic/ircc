@@ -340,8 +340,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return a.openPick(pickLines), nil
 		case "n", "N":
 			return a.searchStep(k == "N"), nil
-		case "esc": // NORMAL esc clears the selected line, the input text and the reply
-			a.hit, a.quote = -1, nil
+		case "esc": // NORMAL esc clears the selected line, the search highlights, the input text and the reply
+			a.hit, a.quote, a.query = -1, nil, ""
 			a.in.Reset()
 			return a, nil
 		}
@@ -613,7 +613,7 @@ func (a App) screen() string {
 // chatScreen is the scrollback, input and modeline, with the completion and toasts floating over them.
 func (a App) chatScreen() string {
 	label, input, hint := a.inputLine()
-	screen := render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.sides(), a.lines(a.m.Current()), a.wrap(), nil, hint, a.grep)
+	screen := render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, a.sides(), a.lines(a.m.Current()), a.wrap(), nil, hint, a.highlight())
 	modeline := a.h - len(inputRows(input, a.w, a.h)) - 1
 	screen = overlaySuggest(screen, a.w, modeline-1, a.suggest()) // floats above the prompt: the layout does not move
 	return overlayToasts(screen, a.w, modeline-1, a.toasts)       // cards sit just above the modeline
@@ -958,9 +958,21 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.pq, cmd = a.pq.Update(msg)
 		a.psel = 0       // a new query starts at its best match
 		a = a.grepSync() // grep filters live as you type
-		return a, cmd
+		return a.pickHit(), cmd
 	}
-	return a, nil
+	return a.pickHit(), nil
+}
+
+// pickHit makes the selected search match the current hit, scrolled into view.
+func (a App) pickHit() App {
+	if a.pickWhat != pickLines {
+		return a
+	}
+	if ms := pickList(a.pickSource(), a.pq.Value()); a.psel < len(ms) {
+		a.hit = ms[a.psel].idx
+		return a.showHit()
+	}
+	return a
 }
 
 // showHit scrolls so the first row of the hit line is the top row of the lines pane.
@@ -1518,4 +1530,15 @@ func (a App) insertFence(info, text string) App {
 	a.in.MoveToEnd()
 	a.in.Focus()
 	return a
+}
+
+// highlight is the text whose matches the lines pane marks: the ctrl+g grep, else the / search.
+func (a App) highlight() string {
+	switch {
+	case a.pick && a.pickWhat == pickLines: // the / search: matches light up as you type
+		return strings.TrimSpace(a.pq.Value())
+	case a.grep != "":
+		return a.grep
+	}
+	return a.query
 }

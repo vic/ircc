@@ -924,7 +924,7 @@ func TestGrepFiltersLines(t *testing.T) {
 
 func TestGrepHighlightKeepsText(t *testing.T) {
 	out := markHits("build FAILED, failed again", lipgloss.NewStyle(), false, "fail")
-	if n := strings.Count(out, "\x1b[7m"); n != 2 || ansi.Strip(out) != "build FAILED, failed again" {
+	if n := strings.Count(out, "\x1b[30;43m"); n != 2 || ansi.Strip(out) != "build FAILED, failed again" {
 		t.Fatalf("highlight: %d hits in %q", n, out)
 	}
 }
@@ -1021,5 +1021,40 @@ func TestInputScrollsWithCursor(t *testing.T) {
 	rows := inputRows(withCursor(a.in.Value(), inputPos(a.in)), 40, 30)
 	if !strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "line00") {
 		t.Fatalf("cursor on line 0 not visible: %q", rows)
+	}
+}
+
+func TestSearchHighlights(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	for _, text := range []string{"alpha beta", "gamma"} {
+		next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "vic", Text: text}})
+		a = next.(App)
+	}
+	a.query = "beta"
+	if got := a.highlight(); got != "beta" {
+		t.Fatalf("highlight %q", got)
+	}
+}
+
+func TestSearchDownMovesHit(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	for _, text := range []string{"needle one", "other", "needle two"} {
+		next, _ := a.Update(LineMsg{Ch: "#a", L: model.Line{Nick: "n", Text: text}})
+		a = next.(App)
+	}
+	a = a.openPick(pickLines)
+	a = typeText(t, a, "needle")
+	if a.hit != 0 {
+		t.Fatalf("best match: hit %d", a.hit)
+	}
+	a, _ = press(t, a, "down")
+	if a.hit != 2 {
+		t.Fatalf("down: hit %d", a.hit)
+	}
+	a, _ = press(t, a, "up")
+	if a.hit != 0 {
+		t.Fatalf("up: hit %d", a.hit)
 	}
 }

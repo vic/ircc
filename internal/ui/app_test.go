@@ -364,7 +364,7 @@ func TestAppSearchHitDisplayed(t *testing.T) {
 	}
 	hasRev := func() bool {
 		for _, r := range strings.Split(a.screen(), "\n") {
-			if strings.Contains(r, "needle one") {
+			if strings.Contains(ansi.Strip(r), "needle one") {
 				return strings.Contains(r, hitNick("n"))
 			}
 		}

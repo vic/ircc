@@ -601,8 +601,8 @@ func overlaySuggest(screen string, w, bottom int, sugg []string) string {
 	return strings.Join(rows, "\n")
 }
 
-// hitStyle marks the text a ctrl+g grep matched.
-var hitStyle = lipgloss.NewStyle().Reverse(true)
+// hitStyle marks the text a ctrl+g grep or / search matched: a background, not inverted.
+var hitStyle = lipgloss.NewStyle().Background(lipgloss.Color("3")).Foreground(lipgloss.Color("0"))
 
 // markHits is markdown with the case-insensitive matches of q in hitStyle.
 func markHits(s string, st lipgloss.Style, code bool, q string) string {
