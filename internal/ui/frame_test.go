@@ -272,3 +272,31 @@ func TestPicker(t *testing.T) {
 		t.Fatal("out of order matched")
 	}
 }
+
+func TestTabCompletion(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil) // #a #b #c
+	next, _ := a.Update(RoomsMsg{"&handson", "&hacks"})
+	a, _ = press(t, next.(App), "i")
+	a = typeText(t, a, "/inv")
+	if s := a.suggest(); len(s) != 1 || !strings.Contains(ansi.Strip(s[0]), "/invite") {
+		t.Fatalf("suggest %q", s)
+	}
+	a, _ = press(t, a, "tab")
+	if a.in.Value() != "/invite" {
+		t.Fatalf("command: %q", a.in.Value())
+	}
+	a = typeText(t, a, " b")
+	a, _ = press(t, a, "tab")
+	if a.in.Value() != "/invite b" { // NEG: "b" is a full nick, nothing longer
+		t.Fatalf("nick: %q", a.in.Value())
+	}
+	a = typeText(t, a, " &ha")
+	a, _ = press(t, a, "tab")
+	first := a.in.Value()
+	a, _ = press(t, a, "tab")
+	if first == a.in.Value() || !strings.HasPrefix(first, "/invite b &ha") || !strings.HasPrefix(a.in.Value(), "/invite b &ha") { // cycles
+		t.Fatalf("channel cycle: %q then %q", first, a.in.Value())
+	}
+	checkFrame(t, a, 80, 24)
+}

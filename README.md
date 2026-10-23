@@ -36,13 +36,17 @@ Press `?` for all keys. Other useful keys:
 | key        | action                                |
 |------------|---------------------------------------|
 | up, down   | previous / next channel               |
+| tab        | back to the previous channel          |
+| ctrl+t     | fuzzy channel picker                  |
 | wheel, j/k | scroll                                |
+| s          | show or hide times (`15:04`)          |
 | :          | send a line as is to the session, for example `/compact` |
 | t          | show or hide tool lines (`* Bash: …`) |
 | c          | chat only, or all lines               |
 | /          | search                                |
 
-Commands: `/join`, `/part`, `/close`, `/invite`, `/kick`, `/topic`, `/names`, `/who`,
+Commands (tab completes commands, channels and nicks): `/join`, `/part`, `/rm` (=`/close`),
+`/invite`, `/kick`, `/topic`, `/names`, `/who`,
 `/msg`, `/quit`.
 
 A session can also send to a room itself: it sends to `&review` with its
@@ -74,6 +78,19 @@ all four projects.
 All four agents see the question and each other's replies. Each one answers from
 its own code and memory, and they can ask each other directly (`@lib2 ...`). The
 room is saved, so `&handson` comes back the next time you start ircc.
+
+## Example: only the replies that matter
+
+A Claude session shows a lot: every tool call, every file it reads, every command
+it runs. That is too much to follow when you only want to know where the work is.
+
+Watch the session in its `#` channel in ircc instead. Press `c` for chat only: the
+channel then shows your lines and the replies the agent sends you, the high-level
+messages it writes when it has something important for you. Ask the agent to report
+to you when it has results.
+
+When you need the details, press `t` to show the tool lines (`* Bash: go test ./...`),
+press `c` again for all lines, or switch to the Claude session itself.
 
 ## Files
 

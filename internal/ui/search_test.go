@@ -31,6 +31,7 @@ func TestSearch(t *testing.T) {
 		{"only match is current", ls, "alpha", 0, false, 0, true},
 		{"from -1 starts at top", ls, "alpha", -1, false, 0, true},
 		{"from past end, prev", ls, "needle", 99, true, 4, true},
+		{"fuzzy", ls, "ndl ag", 0, false, 4, true}, // n-d-l and a-g only in "needle again"
 		{"no match", ls, "zzz", 0, false, 0, false},
 		{"NEG empty query", ls, "", 0, false, 0, false},
 		{"NEG no lines", nil, "a", 0, false, 0, false},

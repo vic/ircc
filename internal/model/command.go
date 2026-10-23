@@ -24,6 +24,10 @@ const (
 	CmdQuit     CmdName = "quit"
 )
 
+// CmdWords are the words a / line can start with (completion lists them); rm and q
+// are aliases ParseCmd maps to close and quit.
+var CmdWords = []string{"join", "part", "rm", "close", "invite", "kick", "topic", "who", "names", "msg", "mode", "thinking", "quit"}
+
 // Cmd can only be built by ParseCmd.
 type Cmd struct {
 	name CmdName

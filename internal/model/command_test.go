@@ -2,6 +2,7 @@ package model
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -56,5 +57,16 @@ func TestParseCmd(t *testing.T) {
 				t.Fatalf("got %q %q want %q %q", got.Name(), got.Args(), tc.name, tc.args)
 			}
 		})
+	}
+}
+
+func TestCmdWordsAllParse(t *testing.T) {
+	for _, w := range CmdWords {
+		if _, err := ParseCmd("/" + w); err != nil && strings.Contains(err.Error(), "unknown command") {
+			t.Errorf("CmdWords has %q, ParseCmd does not know it", w)
+		}
+	}
+	if _, err := ParseCmd("/nosuch"); err == nil || !strings.Contains(err.Error(), "unknown command") { // control
+		t.Fatalf("control: %v", err)
 	}
 }

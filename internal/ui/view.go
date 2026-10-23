@@ -135,16 +135,16 @@ func lineRow(rows []string, of []int, shown []model.Line, hit, i, n int, lead st
 // Channel markers: ● current, ○ gone, else the unread count.
 func View(m model.Model, ml model.Modeline, input string, w, h, off, hit int) string {
 	cur := m.Current()
-	return render(m, ml, input, w, h, off, hit, memberNicks(cur), cur.Lines.All(), wrapLine)
+	return render(m, ml, input, w, h, off, hit, memberNicks(cur), cur.Lines.All(), wrapLine, nil)
 }
 
 // render is View with the nick pane given as nicks and the shown lines of the current channel.
-func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, nicks []string, shown []model.Line, wrap wrapFunc) string {
+func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, nicks []string, shown []model.Line, wrap wrapFunc, sugg []string) string {
 	if w < 1 || h < 3 {
 		return ""
 	}
 	cur := m.Current()
-	ir := inputRows(input, w, h)
+	ir := append(sugg, inputRows(input, w, h)...) // the suggestion row sits right above the input
 	n := paneRows(w, h, len(ir))
 	lines, of := tailRows(shown, n, off, textWidth(w, h), wrap)
 

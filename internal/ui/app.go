@@ -82,6 +82,7 @@ type App struct {
 	pick    bool            // ctrl+t: the channel picker is open
 	pq      textinput.Model // picker query (own input: a typed message survives)
 	psel    int             // picker selection, an index in pickList
+	comp    completion      // tab completion state of the INSERT line
 	tools   bool            // t: show tool lines
 	chat    bool            // c: show only Chat lines (replies, rooms, own lines)
 }
@@ -189,7 +190,13 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case act.Kind == NextChan || act.Kind == PrevChan:
 			return a.switchChan(act), nil
 		}
-		return a, nil // Complete: nick completion is not implemented
+		if act.Kind == Complete {
+			v, comp := a.comp.step(a.in.Value(), a.chanNames(), a.nickPool())
+			a.in.SetValue(v)
+			a.in.CursorEnd()
+			a.comp = comp
+		}
+		return a, nil
 	}
 	if a.pending == "" {
 		switch k {
@@ -372,13 +379,13 @@ func (a App) screen() string {
 		return pickView(a.w, a.h, a.pq.Value(), pickList(a.chanNames(), a.pq.Value()), a.psel)
 	}
 	label, input := a.inputLine()
-	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, chanNicks(a.m.Current(), a.user), a.lines(a.m.Current()), a.wrap())
+	return render(a.m, model.Status(a.m, label, a.info, a.now()), input, a.w, a.h, a.off(), a.hit, chanNicks(a.m.Current(), a.user), a.lines(a.m.Current()), a.wrap(), a.suggest())
 }
 
 // page is the number of scrollback rows View shows; a long input takes rows from it.
 func (a App) page() int {
 	_, input := a.inputLine()
-	return paneRows(a.w, a.h, len(inputRows(input, a.w, a.h)))
+	return paneRows(a.w, a.h, len(inputRows(input, a.w, a.h))+len(a.suggest()))
 }
 
 // off is the current channel's scroll offset.
@@ -545,4 +552,40 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	return a, nil
+}
+
+// nickPool is every nick tab can complete: session main agents, then members of
+// the current room.
+func (a App) nickPool() []string {
+	var out []string
+	for _, c := range a.m.Channels() {
+		if c.Kind == model.SessionChan {
+			out = append(out, strings.TrimPrefix(c.Name, "#"))
+		}
+	}
+	for _, m := range a.m.Current().Members {
+		out = append(out, m.Nick)
+	}
+	return out
+}
+
+// suggest is the completion row above an INSERT line (0 or 1 row): what tab puts in.
+func (a App) suggest() []string {
+	if a.mode != Insert || a.prompt != 0 {
+		return nil
+	}
+	cs := candidates(a.in.Value(), a.chanNames(), a.nickPool())
+	if len(cs) == 0 {
+		return nil
+	}
+	_, word := lastWord(a.in.Value())
+	var parts []string
+	for i, c := range cs {
+		st := dimmed
+		if i == 0 {
+			st = cell.Bold(true)
+		}
+		parts = append(parts, shortcut.Bold(true).Render(c[:len(word)])+st.Render(c[len(word):]))
+	}
+	return []string{fit(cell, dimmed.Render("tab ")+strings.Join(parts, "  "), max(a.w, 1))}
 }
