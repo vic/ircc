@@ -9,7 +9,9 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -78,6 +80,7 @@ const (
 	defaultW, defaultH = 80, 24
 	promptCmd          = ':'
 	promptShell        = '$'
+	promptCapture      = '!'
 
 	wheelRows = 3 // rows one wheel notch scrolls
 )
@@ -85,48 +88,53 @@ const (
 // App is the bubbletea model: keys.go decides, App applies. No sockets here;
 // sending goes through the injected send func.
 type App struct {
-	m        model.Model
-	mode     EditMode
-	pending  string
-	in       textinput.Model
-	send     func(ch, text string) error
-	cmdf     func(ch string, c model.Cmd) tea.Cmd // runs a parsed command; ch is the focused channel
-	literal  func(ch, text string) error          // the : prompt: text as is to the session socket
-	user     string                               // nick of the local echo line
-	quote    *model.Line                          // a clicked line being replied to; sent above the next line, not in the input
-	info     map[int]model.SessionInfo
-	now      func() time.Time
-	w, h     int
-	prompt   rune // 0 or promptCmd (:): the input line holds a prompt
-	query    string
-	hit      int             // index in the current channel of the last search hit, -1 none
-	offs     map[string]int  // per channel: lines scrolled back from the newest
-	help     bool            // the ? popup is shown; the next key closes it
-	focus    paneFocus       // tab: which pane takes keys (chat, channels, nicks)
-	fq       string          // query typed in a focused side pane (fuzzy filter)
-	fsel     int             // selected row in the focused side pane
-	stamps   bool            // s: show "15:04 " before each line
-	pick     bool            // ctrl+o or /: the picker is open
-	pickWhat pickKind        // what the picker lists: channels (ctrl+o), lines (/), speakers (S)
-	speakers []string        // S: show only these nicks' lines; none = all
-	grep     string          // ctrl+g: show only lines fuzzy-matching this; "" off
-	marks    []string        // S picker: nicks marked with space, applied by enter
-	resumeTo string          // channel to focus once it shows up (the last one of the previous run)
-	toasts   []toast         // notification cards, newest last; the tick drops old ones
-	helpOff  int             // help box scroll (j k, wheel) when it is taller than the screen
-	pq       textinput.Model // picker query (own input: a typed message survives)
-	files    []string        // pickFiles: the session's files, from git ls-files (filesMsg)
-	psel     int             // picker selection, an index in pickList
-	comp     completion      // tab completion state of the INSERT line
-	tools    bool            // t: show tool lines
-	mentions bool            // m: show only direct lines (see shows)
+	m         model.Model
+	mode      EditMode
+	pending   string
+	in        textarea.Model // multi-line input: shift+enter adds a line, enter sends
+	hist      []string       // sent input lines, oldest first (in memory only)
+	histAt    int            // index into hist while browsing; -1 = not browsing
+	histDraft string         // the unsent input held while browsing
+	send      func(ch, text string) error
+	cmdf      func(ch string, c model.Cmd) tea.Cmd // runs a parsed command; ch is the focused channel
+	literal   func(ch, text string) error          // the : prompt: text as is to the session socket
+	user      string                               // nick of the local echo line
+	quote     *model.Line                          // a clicked line being replied to; sent above the next line, not in the input
+	info      map[int]model.SessionInfo
+	now       func() time.Time
+	w, h      int
+	prompt    rune // 0 or promptCmd (:): the input line holds a prompt
+	query     string
+	hit       int             // index in the current channel of the last search hit, -1 none
+	offs      map[string]int  // per channel: lines scrolled back from the newest
+	help      bool            // the ? popup is shown; the next key closes it
+	focus     paneFocus       // tab: which pane takes keys (chat, channels, nicks)
+	fq        string          // query typed in a focused side pane (fuzzy filter)
+	fsel      int             // selected row in the focused side pane
+	stamps    bool            // s: show "15:04 " before each line
+	pick      bool            // ctrl+o or /: the picker is open
+	pickWhat  pickKind        // what the picker lists: channels (ctrl+o), lines (/), speakers (S)
+	speakers  []string        // S: show only these nicks' lines; none = all
+	grep      string          // ctrl+g: show only lines fuzzy-matching this; "" off
+	marks     []string        // S picker: nicks marked with space, applied by enter
+	resumeTo  string          // channel to focus once it shows up (the last one of the previous run)
+	toasts    []toast         // notification cards, newest last; the tick drops old ones
+	helpOff   int             // help box scroll (j k, wheel) when it is taller than the screen
+	pq        textinput.Model // picker query (own input: a typed message survives)
+	files     []string        // pickFiles: the session's files, from git ls-files (filesMsg)
+	psel      int             // picker selection, an index in pickList
+	comp      completion      // tab completion state of the INSERT line
+	tools     bool            // t: show tool lines
+	mentions  bool            // m: show only direct lines (see shows)
 }
 
 // New returns an App over m that sends channel text through send.
 func New(m model.Model, send func(ch, text string) error) App {
-	in := textinput.New()
+	in := textarea.New()
 	in.Prompt = ""
-	return App{m: m, in: in, send: send, user: "me", now: time.Now, w: defaultW, h: defaultH, hit: -1}
+	in.ShowLineNumbers = false
+	in.SetWidth(1 << 16) // no soft wrap in the buffer: render wraps it
+	return App{m: m, in: in, send: send, user: "me", now: time.Now, w: defaultW, h: defaultH, hit: -1, histAt: -1}
 }
 
 // Init starts the 1 s tick: it drops old toasts and keeps the clock current.
@@ -183,6 +191,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case LiteralResultMsg:
 		if msg.Err != nil {
 			a = a.note("literal send failed: " + msg.Err.Error())
+		}
+	case shellOutMsg:
+		a = a.insertBlock(string(msg.Out))
+		if msg.Err != nil {
+			a = a.note("command: " + msg.Err.Error())
 		}
 	case execDoneMsg:
 		if msg.Err != nil {
@@ -263,6 +276,10 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.help, a.helpOff = false, 0
 		return a, nil
 	}
+	if k == "shift+enter" && (a.mode == Insert || a.prompt != 0) && !a.pick && !a.help {
+		a.in.InsertString("\n")
+		return a, nil
+	}
 	if a.prompt != 0 {
 		return a.promptKey(msg)
 	}
@@ -285,18 +302,26 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case act.Kind == Scroll:
 			return a.scroll(act), nil
 		case act.Kind == LineUp || act.Kind == LineDown:
+			if a.in.LineCount() > 1 && a.mode == Insert { // multi-line input: up and down move inside it
+				var cmd tea.Cmd
+				a.in, cmd = a.in.Update(msg)
+				return a, cmd
+			}
 			return a.lineStep(act.Kind == LineDown), nil
 		case act.Kind == PickChan:
 			return a.openPick(pickChans), nil
 		case act.Kind == PickFile:
 			return a.openFilePick()
+		case act.Kind == HistPrev || act.Kind == HistNext:
+			a = a.histStep(act.Kind == HistPrev)
+			return a, nil
 		case act.Kind == NextChan || act.Kind == PrevChan:
 			return a.switchChan(act), nil
 		}
 		if act.Kind == Complete {
 			v, comp := a.comp.step(a.in.Value(), a.chanNames(), a.nickPool())
 			a.in.SetValue(v)
-			a.in.CursorEnd()
+			a.in.MoveToEnd()
 			a.comp = comp
 		}
 		return a, nil
@@ -321,7 +346,7 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if act.Kind == ReplyMention {
 			if n := a.lastMention(); n != "" {
 				a.in.SetValue("@" + n + " ")
-				a.in.CursorEnd()
+				a.in.MoveToEnd()
 			}
 		}
 		if act.Kind == ReplySelected { // A: reply to the selected line, else to the last one, which gets selected
@@ -339,6 +364,8 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch act.Kind {
 	case CmdLine:
 		return a.openPrompt(promptCmd), nil
+	case CaptureLine:
+		return a.openPrompt(promptCapture), nil
 	case ShellLine:
 		return a.openPrompt(promptShell), nil
 	case Scroll, HalfPage, Top, Bottom:
@@ -403,6 +430,9 @@ func (a App) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		kind := a.prompt
 		var v string
 		a, v = a.closePrompt()
+		if kind == promptCapture {
+			return a.runCapture(v)
+		}
 		if kind == promptShell {
 			return a.runShell(v)
 		}
@@ -462,6 +492,10 @@ func (a App) focusName(name string) App {
 
 func (a App) sendLine() (tea.Model, tea.Cmd) {
 	text := a.in.Value()
+	if strings.TrimSpace(text) != "" {
+		a.hist = append(a.hist, text)[max(len(a.hist)+1-histMax, 0):]
+	}
+	a.histAt = -1
 	a.in.Reset()
 	ch := a.m.Current().Name
 	switch {
@@ -509,22 +543,24 @@ func (a App) toast(text string, err bool) App {
 func (a App) inputLine() (label, input, hint string) {
 	switch {
 	case a.prompt == promptCmd:
-		return "NORMAL", ": " + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send as is", "C-t", "files", "esc", "cancel")
+		return "NORMAL", ": " + withCursor(a.in.Value(), inputPos(a.in)), keyHint("enter", "send as is", "C-t", "files", "esc", "cancel")
+	case a.prompt == promptCapture:
+		return "NORMAL", "! " + withCursor(a.in.Value(), inputPos(a.in)), keyHint("enter", "run, insert output", "C-t", "files", "esc", "cancel")
 	case a.prompt == promptShell:
-		return "NORMAL", "$ " + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "run locally", "C-t", "files", "esc", "cancel")
+		return "NORMAL", "$ " + withCursor(a.in.Value(), inputPos(a.in)), keyHint("enter", "run locally", "C-t", "files", "esc", "cancel")
 	case a.mode == Insert:
 		prompt := "> "
 		if a.quote != nil { // RE: while replying; the quote is dropped once the input is empty
 			prompt = "RE: "
 		}
 		if u := a.cmdUsage(); u != "" { // typing a /command: its usage is the hint (vic 2026-10-23)
-			return "INSERT", prompt + withCursor(a.in.Value(), a.in.Position()), u
+			return "INSERT", prompt + withCursor(a.in.Value(), inputPos(a.in)), u
 		}
 		hint := keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "files", "C-o", "pick", "esc", "normal")
 		if a.quote != nil { // the replied-to line is shown here, not in the input
 			hint = keyHint("re", "<"+a.quote.Nick+"> "+a.quote.Text) + "   " + hint
 		}
-		return "INSERT", prompt + withCursor(a.in.Value(), a.in.Position()), hint
+		return "INSERT", prompt + withCursor(a.in.Value(), inputPos(a.in)), hint
 	case a.focus == focusChans:
 		return "CHANNELS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "join", "tab", "nicks", "esc", "chat")
 	case a.focus == focusNicks:
@@ -848,7 +884,7 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				a.mode = Insert
 			}
 			a.in.SetValue(a.in.Value() + ms[a.psel].name + " ")
-			a.in.CursorEnd()
+			a.in.MoveToEnd()
 			a.in.Focus()
 		} else if a.psel < len(ms) && a.pickWhat == pickInvite {
 			a.pick = false
@@ -873,7 +909,7 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			if nick, ok := strings.CutPrefix(ms[a.psel].name, "@"); ok {
 				a.mode = Insert
 				a.in.SetValue(a.in.Value() + "@" + nick + " ")
-				a.in.CursorEnd()
+				a.in.MoveToEnd()
 				a.in.Focus()
 			} else {
 				a = a.focusName(ms[a.psel].name)
@@ -1184,7 +1220,7 @@ func (a App) openTarget(path, cmd string) (App, tea.Cmd) {
 	if cmd != "" {
 		a = a.openPrompt(promptCmd)
 		a.in.SetValue("!" + cmd)
-		a.in.CursorEnd()
+		a.in.MoveToEnd()
 		return a, nil
 	}
 	if rest, ok := strings.CutPrefix(path, "~/"); ok {
@@ -1233,7 +1269,7 @@ func (a App) lineAt(i int) (model.Line, string, bool) {
 func (a App) mention(nick string) App {
 	a.mode = Insert
 	a.in.SetValue(a.in.Value() + "@" + nick + " ")
-	a.in.CursorEnd()
+	a.in.MoveToEnd()
 	a.in.Focus()
 	return a
 }
@@ -1280,6 +1316,9 @@ func withCursor(s string, pos int) string {
 	pos = min(max(pos, 0), len(rs))
 	if pos == len(rs) {
 		return s + cursor.Render(" ")
+	}
+	if rs[pos] == '\n' { // a cursor on a line end shows as a block, the newline stays
+		return string(rs[:pos]) + cursor.Render(" ") + string(rs[pos:])
 	}
 	return string(rs[:pos]) + cursor.Render(string(rs[pos])) + string(rs[pos+1:])
 }
@@ -1360,5 +1399,68 @@ func (a App) grepSync() App {
 	if a.pickWhat == pickGrep {
 		a.grep, a.hit, a.offs = strings.TrimSpace(a.pq.Value()), -1, nil
 	}
+	return a
+}
+
+// shellOutMsg is the finished output of a ! command; Err is its exit error, if any.
+type shellOutMsg struct {
+	Out []byte
+	Err error
+}
+
+// runCapture runs cmd with sh -c in the background; its output comes back as a shellOutMsg.
+func (a App) runCapture(cmd string) (App, tea.Cmd) {
+	if strings.TrimSpace(cmd) == "" {
+		return a, nil
+	}
+	return a, func() tea.Msg {
+		out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+		return shellOutMsg{Out: out, Err: err}
+	}
+}
+
+// insertBlock appends text to the input as a markdown fenced block and opens INSERT, so it can be edited and sent.
+func (a App) insertBlock(text string) App {
+	a.mode = Insert
+	a.in.SetValue(a.in.Value() + "```\n" + strings.TrimRight(text, "\n") + "\n```\n")
+	a.in.MoveToEnd()
+	a.in.Focus()
+	return a
+}
+
+// inputPos is the cursor's rune offset in the input text, counting newlines.
+func inputPos(in textarea.Model) int {
+	lines := strings.Split(in.Value(), "\n")
+	pos := 0
+	for i := 0; i < in.Line() && i < len(lines); i++ {
+		pos += utf8.RuneCountInString(lines[i]) + 1
+	}
+	return pos + in.Column()
+}
+
+// histMax is how many sent input lines ctrl+p and ctrl+n step through.
+const histMax = 100
+
+// histStep moves the input through sent lines: back (ctrl+p) to older, forward (ctrl+n)
+// to newer; past the newest it returns the unsent draft. Not persisted.
+func (a App) histStep(back bool) App {
+	if len(a.hist) == 0 || (!back && a.histAt < 0) {
+		return a
+	}
+	if a.histAt < 0 {
+		a.histDraft, a.histAt = a.in.Value(), len(a.hist)
+	}
+	if back {
+		a.histAt = max(a.histAt-1, 0)
+	} else {
+		a.histAt++
+	}
+	if a.histAt >= len(a.hist) {
+		a.histAt = -1
+		a.in.SetValue(a.histDraft)
+	} else {
+		a.in.SetValue(a.hist[a.histAt])
+	}
+	a.in.MoveToEnd()
 	return a
 }

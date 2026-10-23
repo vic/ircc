@@ -24,10 +24,13 @@ const (
 	Top
 	Bottom
 	NextChan
+	HistPrev
+	HistNext
 	PrevChan
 	GotoChan
 	CmdLine
 	ShellLine
+	CaptureLine
 	Send
 	Complete
 	Help
@@ -79,9 +82,9 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 		case "down":
 			return Action{Kind: LineDown}, Insert, ""
 		case "ctrl+p":
-			return Action{Kind: PrevChan}, Insert, ""
+			return Action{Kind: HistPrev}, Insert, ""
 		case "ctrl+n":
-			return Action{Kind: NextChan}, Insert, ""
+			return Action{Kind: HistNext}, Insert, ""
 		case "tab":
 			return Action{Kind: Complete}, Insert, ""
 		}
@@ -143,6 +146,8 @@ func Key(m EditMode, pending, k string) (Action, EditMode, string) {
 			return Action{Kind: CmdLine}, Normal, ""
 		case "$":
 			return Action{Kind: ShellLine}, Normal, ""
+		case "!":
+			return Action{Kind: CaptureLine}, Normal, ""
 		case "g":
 			return Action{}, Normal, "g"
 		}

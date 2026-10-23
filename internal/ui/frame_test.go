@@ -79,9 +79,9 @@ func TestHelpAndArrows(t *testing.T) {
 		if cur(a) != "#c" { // wraps
 			t.Fatalf("ctrl+p ctrl+p: %s", cur(a))
 		}
-		a, _ = press(t, a, "i", "ctrl+n", "down", "up") // insert mode: switches, arrows never type
-		if cur(a) != "#a" || a.in.Value() != "" {
-			t.Fatalf("insert ctrl+n: %s %q", cur(a), a.in.Value())
+		a, _ = press(t, a, "i", "down", "up") // insert mode: arrows never type
+		if cur(a) != "#c" || a.in.Value() != "" {
+			t.Fatalf("insert arrows: %s %q", cur(a), a.in.Value())
 		}
 	}
 }
@@ -926,5 +926,66 @@ func TestGrepHighlightKeepsText(t *testing.T) {
 	out := markHits("build FAILED, failed again", lipgloss.NewStyle(), false, "fail")
 	if n := strings.Count(out, "\x1b[7m"); n != 2 || ansi.Strip(out) != "build FAILED, failed again" {
 		t.Fatalf("highlight: %d hits in %q", n, out)
+	}
+}
+
+func TestCaptureInsertsBlock(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	a, _ = press(t, a, "!")
+	a = typeText(t, a, "echo hi")
+	a, cmd := press(t, a, "enter")
+	if a.prompt != 0 || cmd == nil || len(log) != 0 {
+		t.Fatalf("enter: prompt %q cmd %v sent %d", a.prompt, cmd != nil, len(log))
+	}
+	next, _ := a.Update(shellOutMsg{Out: []byte("hi\n")})
+	if a = next.(App); a.in.Value() != "```\nhi\n```\n" || a.mode != Insert {
+		t.Fatalf("block: %q mode %v", a.in.Value(), a.mode)
+	}
+}
+
+func TestShiftEnterAddsLine(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	a, _ = press(t, a, "i")
+	a = typeText(t, a, "a")
+	next, _ := a.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
+	a = next.(App)
+	a = typeText(t, a, "b")
+	if a.in.Value() != "a\nb" || len(log) != 0 {
+		t.Fatalf("input %q sent %d", a.in.Value(), len(log))
+	}
+}
+
+func TestUpDownInMultiLineInput(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	a, _ = press(t, a, "i")
+	a = typeText(t, a, "ab")
+	next, _ := a.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
+	a = typeText(t, next.(App), "cd")
+	next, _ = a.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	if a = next.(App); a.in.Line() != 0 {
+		t.Fatalf("up did not move in input: line %d", a.in.Line())
+	}
+}
+
+func TestInputHistory(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	a.hist = []string{"one", "two"}
+	a, _ = press(t, a, "i")
+	a = typeText(t, a, "dra")
+	a, _ = press(t, a, "ctrl+p")
+	if a.in.Value() != "two" {
+		t.Fatalf("ctrl+p: %q", a.in.Value())
+	}
+	a, _ = press(t, a, "ctrl+p", "ctrl+p")
+	if a.in.Value() != "one" {
+		t.Fatalf("ctrl+p past oldest: %q", a.in.Value())
+	}
+	a, _ = press(t, a, "ctrl+n", "ctrl+n", "ctrl+n")
+	if a.in.Value() != "dra" || a.histAt != -1 {
+		t.Fatalf("ctrl+n back to draft: %q", a.in.Value())
 	}
 }
