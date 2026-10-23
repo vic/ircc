@@ -397,7 +397,7 @@ var helpSections = []struct {
 	{"NORMAL", [][2]string{
 		{"up down", "previous / next channel (also ctrl+p ctrl+n, gT gt, {n}gt)"},
 		{"tab", "focus channels, then nicks: type to filter, enter joins / mentions"},
-		{"ctrl+t", "fuzzy channel picker"},
+		{"ctrl+t", "fuzzy picker: channels, and @nicks to mention"},
 		{"wheel j k", "scroll"},
 		{"J K", "next / previous speaker change"},
 		{"shift+drag", "select text (the terminal does it; ircc takes plain drags)"},

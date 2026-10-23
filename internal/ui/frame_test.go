@@ -492,3 +492,21 @@ func TestFocusBorder(t *testing.T) {
 	}
 	checkFrame(t, a, a.w, a.h)
 }
+
+func TestPickerNicks(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	next, _ := a.Update(AgentsMsg{Ch: "#a", Agents: []model.Agent{{Nick: "driver-1"}}})
+	a, _ = press(t, next.(App), "ctrl+t")
+	a = typeText(t, a, "@dri")
+	a, _ = press(t, a, "enter")
+	if a.pick || a.mode != Insert || a.in.Value() != "@driver-1 " || cur(a) != "#a" {
+		t.Fatalf("nick pick: mode %v input %q cur %s", a.mode, a.in.Value(), cur(a))
+	}
+	a, _ = press(t, a, "esc", "ctrl+t")
+	a = typeText(t, a, "#b")
+	a, _ = press(t, a, "enter")
+	if cur(a) != "#b" { // control: channels still work
+		t.Fatalf("channel pick: %s", cur(a))
+	}
+}

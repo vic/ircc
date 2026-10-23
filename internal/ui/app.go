@@ -405,7 +405,7 @@ func (a App) screen() string {
 		return helpView(a.w, a.h)
 	}
 	if a.pick {
-		what := "channel"
+		what := "channel / @nick"
 		if a.pickLines {
 			what = "search"
 		}
@@ -589,7 +589,11 @@ func (a App) openPick(lines bool) App {
 // pickSource is what the picker searches: channel names, or "<nick> text" per shown line.
 func (a App) pickSource() []string {
 	if !a.pickLines {
-		return a.chanNames()
+		out := a.chanNames() // ctrl+t: channels, then the current channel's nicks as @nick
+		for _, n := range chanNicks(a.m.Current(), a.user)[1:] {
+			out = append(out, "@"+n)
+		}
+		return out
 	}
 	var out []string
 	for _, l := range a.lines(a.m.Current()) {
@@ -609,7 +613,14 @@ func (a App) pickKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			a.hit, a.query = ms[a.psel].idx, a.pq.Value() // n / N go on from here
 			a = a.showHit()
 		} else if a.psel < len(ms) {
-			a = a.focusName(ms[a.psel].name)
+			if nick, ok := strings.CutPrefix(ms[a.psel].name, "@"); ok {
+				a.mode = Insert
+				a.in.SetValue(a.in.Value() + "@" + nick + " ")
+				a.in.CursorEnd()
+				a.in.Focus()
+			} else {
+				a = a.focusName(ms[a.psel].name)
+			}
 		}
 		a.pick = false
 	case "up", "ctrl+p":
