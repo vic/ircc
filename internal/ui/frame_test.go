@@ -814,8 +814,25 @@ func TestClickChannelAndNick(t *testing.T) {
 	if a.mode != Insert || a.in.Value() != "@"+nk[0]+" " {
 		t.Fatalf("click nick: mode %v input %q", a.mode, a.in.Value())
 	}
-	click(40, 2) // NEG: middle of the chat pane mentions nothing
-	if a.in.Value() != "@"+nk[0]+" " {
-		t.Fatalf("click chat pane changed input: %q", a.in.Value())
+	click(2, 1) // back to #a, which has the lines
+	a.in.SetValue("")
+	click(40, 2) // a line of the lines pane: replies to its nick "n"
+	if a.in.Value() != "@n " {
+		t.Fatalf("click line: input %q", a.in.Value())
+	}
+	a.in.SetValue("")
+	click(40, 0) // NEG: the title row is not a line
+	if a.in.Value() != "" {
+		t.Fatalf("click title row mentioned: %q", a.in.Value())
+	}
+	click(40, 2) // reply to "n": the quote stays out of the input
+	a.in.SetValue("@n ok")
+	next, cmd := a.sendLine()
+	a = next.(App)
+	if got := cmd().(SendResultMsg).Text; got != "> <n> msgH\n@n ok" { // row 1 of the 6 shown: msgG is row 0
+		t.Fatalf("sent %q", got)
+	}
+	if a.quote != nil {
+		t.Fatal("quote kept after send")
 	}
 }

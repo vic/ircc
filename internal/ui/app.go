@@ -86,6 +86,7 @@ type App struct {
 	cmdf     func(ch string, c model.Cmd) tea.Cmd // runs a parsed command; ch is the focused channel
 	literal  func(ch, text string) error          // the : prompt: text as is to the session socket
 	user     string                               // nick of the local echo line
+	quote    *model.Line                          // a clicked line being replied to; sent above the next line, not in the input
 	info     map[int]model.SessionInfo
 	now      func() time.Time
 	w, h     int
@@ -254,6 +255,7 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return a.sendLine()
 		case act.Kind == None && mode == Normal:
 			a.mode = Normal
+			a.quote = nil // esc drops the reply; the typed text stays
 			a.in.Blur()
 		case act.Kind == None:
 			var cmd tea.Cmd
@@ -417,6 +419,10 @@ func (a App) sendLine() (tea.Model, tea.Cmd) {
 	case strings.HasPrefix(text, "/"):
 		return a.runCmd(text)
 	default:
+		if a.quote != nil { // the agent sees the line replied to, as markdown quote
+			text = "> <" + a.quote.Nick + "> " + a.quote.Text + "\n" + text
+			a.quote = nil
+		}
 		send := a.send // blocking I/O runs in the Cmd, never in Update
 		return a, func() tea.Msg { return SendResultMsg{Ch: ch, Text: text, Err: send(ch, text)} }
 	}
@@ -458,7 +464,11 @@ func (a App) inputLine() (label, input, hint string) {
 		if u := a.cmdUsage(); u != "" { // typing a /command: its usage is the hint (vic 2026-10-23)
 			return "INSERT", "> " + withCursor(a.in.Value(), a.in.Position()), u
 		}
-		return "INSERT", "> " + withCursor(a.in.Value(), a.in.Position()), keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "pick", "esc", "normal")
+		hint := keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "pick", "esc", "normal")
+		if a.quote != nil { // the replied-to line is shown here, not in the input
+			hint = keyHint("re", "<"+a.quote.Nick+"> "+a.quote.Text) + "   " + hint
+		}
+		return "INSERT", "> " + withCursor(a.in.Value(), a.in.Position()), hint
 	case a.focus == focusChans:
 		return "CHANNELS", a.footer(), keyHint("type", "filter "+a.fq, "↑↓", "select", "enter", "join", "tab", "nicks", "esc", "chat")
 	case a.focus == focusNicks:
@@ -1033,8 +1043,23 @@ func (a App) click(m tea.Mouse) (tea.Model, tea.Cmd) {
 		if _, names := a.paneItems(focusNicks); i < len(names) {
 			a = a.mention(names[i])
 		}
+	default: // the lines pane: a click replies to that line's nick
+		if l, ok := a.lineAt(i); ok && l.Nick != "" && l.Nick != a.user {
+			a = a.mention(l.Nick)
+			a.quote = &l
+		}
 	}
 	return a, nil
+}
+
+// lineAt is the shown line of lines-pane row i, as render draws it.
+func (a App) lineAt(i int) (model.Line, bool) {
+	shown := a.lines(a.m.Current())
+	rows, of := tailRows(shown, a.page(), a.off(), textWidth(a.w, a.h), a.wrap())
+	if i >= len(rows) {
+		return model.Line{}, false
+	}
+	return shown[of[i]], true
 }
 
 // mention starts an insert line with @nick, after any text already typed.
