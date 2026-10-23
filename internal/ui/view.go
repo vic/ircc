@@ -443,6 +443,7 @@ var helpSections = []struct {
 		{"/topic /names /who", "room topic, members"},
 		{"/msg nick text", "one line to one agent"},
 		{"/help", "this help (same as ?)"},
+		{"/quit", "quit (also ctrl+c)"},
 	}},
 }
 

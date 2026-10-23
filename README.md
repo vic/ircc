@@ -61,13 +61,14 @@ Press `?` in ircc for all of them.
 | up, down     | move the line cursor (ctrl+n, ctrl+p: next / previous channel) |
 | ctrl+t       | pick a channel, or an @nick to mention                  |
 | tab          | focus the channel or nick pane; type to filter, moving previews |
-| i            | type a line (`O` starts a reply to the last @mention)   |
+| i, a, o      | type a line (`O` starts a reply to the last @mention)   |
 | I            | invite someone to this room (fuzzy pick)                |
 | /            | fuzzy search; enter jumps to the line                   |
 | J, K         | next / previous speaker change                          |
-| S            | show only one speaker (fuzzy pick)                      |
+| S            | show only one speaker (fuzzy pick; `(all)` clears)      |
 | y            | copy the cursor line to the clipboard                   |
-| wheel, j, k  | scroll                                                  |
+| shift+drag   | select text with the mouse (the terminal does it)       |
+| wheel, j, k  | scroll (vim keys too: ctrl+d/u, gg/G, gt/gT, n/N for hits) |
 | t, m, s      | toggle tool lines, mentions only, times                 |
 | :            | send a line as is to the session                        |
 
