@@ -93,7 +93,21 @@ func ParseCmd(line string) (Cmd, error) {
 		args = strings.Fields(rest)
 	}
 	if n >= 0 && (len(args) != n || slices.Contains(args, "")) {
-		return Cmd{}, fmt.Errorf("/%s wants %d args, got %d", word, n, len(args))
+		return Cmd{}, fmt.Errorf("usage: %s", usage[name])
 	}
 	return Cmd{name: name, args: args}, nil
+}
+
+// usage is shown when a command gets the wrong arguments (vic 2026-10-23).
+var usage = map[CmdName]string{
+	CmdJoin:   "/join &room",
+	CmdPart:   "/part [&room]",
+	CmdClose:  "/close [&room] (or /rm)",
+	CmdInvite: "/invite <nick> &room",
+	CmdKick:   "/kick <nick>",
+	CmdTopic:  "/topic <text>",
+	CmdWho:    "/who [&room]",
+	CmdNames:  "/names [&room]",
+	CmdMsg:    "/msg <nick> <text>",
+	CmdQuit:   "/quit",
 }

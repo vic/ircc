@@ -66,3 +66,17 @@ func TestCmdWordsAllParse(t *testing.T) {
 		t.Fatalf("control: %v", err)
 	}
 }
+
+func TestUsageOnBadArgs(t *testing.T) {
+	for line, want := range map[string]string{"/join": "usage: /join &room", "/invite dave": "usage: /invite <nick> &room", "/msg": "usage: /msg <nick> <text>"} {
+		if _, err := ParseCmd(line); err == nil || err.Error() != want {
+			t.Errorf("%s: %v", line, err)
+		}
+	}
+	for _, w := range CmdWords { // every command word has a usage
+		c, _ := ParseCmd("/" + w)
+		if n := CmdName(w); usage[n] == "" && usage[c.Name()] == "" {
+			t.Errorf("no usage for %s", w)
+		}
+	}
+}
