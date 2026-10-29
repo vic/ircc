@@ -279,8 +279,10 @@ func TestMCPMsgNeverAsTUINick(t *testing.T) {
 	}
 
 	y := newMCP(t, 104)
+	y.r.mu.Lock() // the MCP server already serves: guard the maps it reads
 	y.r.live[104] = registry.Entry{PID: 104, SessionID: "s-vic", SocketPath: "/s/vic.sock", Name: "vic"}
 	y.r.names[104], y.r.tails[104] = "#vic", &tail{mode: "default"}
+	y.r.mu.Unlock()
 	d := y.dial(t)
 	if text, isErr := d.call("ircc_msg", map[string]any{"to": "#bob", "text": "I am vic"}); !isErr || !strings.Contains(text, "TUI user") {
 		t.Fatalf("caller named vic: %q %v", text, isErr)
