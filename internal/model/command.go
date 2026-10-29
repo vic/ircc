@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // CmdName is the closed set of command names (DESIGN D:318-319).
@@ -27,7 +28,7 @@ const (
 // are aliases ParseCmd maps to close and quit.
 var CmdWords = []string{"join", "part", "rm", "close", "invite", "kick", "topic", "whois", "names", "msg", "help", "quit"}
 
-// Cmd can only be built by ParseCmd.
+// Cmd can only be built by ParseCmd or NewCmd.
 type Cmd struct {
 	name CmdName
 	args []string
@@ -35,6 +36,29 @@ type Cmd struct {
 
 func (c Cmd) Name() CmdName  { return c.name }
 func (c Cmd) Args() []string { return c.args }
+
+// String is the / line of c, as the I5 "via mcp" line shows it.
+func (c Cmd) String() string {
+	return strings.Join(append([]string{"/" + string(c.name)}, c.args...), " ")
+}
+
+// NewCmd builds a Cmd from typed args (MCP tools, I4) under ParseCmd's rules:
+// the arity of name, no empty arg, and only a raw last arg may hold whitespace.
+func NewCmd(name CmdName, args ...string) (Cmd, error) {
+	n, raw, ok := arity(name)
+	if !ok {
+		return Cmd{}, fmt.Errorf("unknown command %q", name)
+	}
+	bad := n >= 0 && len(args) != n
+	for i, a := range args {
+		rawArg := raw && i == len(args)-1
+		bad = bad || strings.TrimSpace(a) == "" || (!rawArg && strings.ContainsFunc(a, unicode.IsSpace))
+	}
+	if bad {
+		return Cmd{}, fmt.Errorf("usage: %s", usage[name])
+	}
+	return Cmd{name: name, args: slices.Clone(args)}, nil
+}
 
 // arity gives the arg count per name; raw means the last arg is the rest of
 // the line verbatim. ok is false for an unknown name; n < 0 is free-form.

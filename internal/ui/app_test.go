@@ -541,3 +541,20 @@ func notes(a App) []model.Line {
 	}
 	return out
 }
+
+// TestQueryMsg: the App answers a query with what the user sees and never
+// blocks on a full reply channel.
+func TestQueryMsg(t *testing.T) {
+	var log []sent
+	a := newApp(t, &log, nil)
+	a, _ = press(t, a, "i")
+	a = typeText(t, a, "hi")
+	reply := make(chan Snapshot, 1)
+	a.Update(QueryMsg{Reply: reply})
+	s := <-reply
+	if len(s.Model.Channels()) != 3 || s.User != "me" || !s.Typing {
+		t.Fatalf("snapshot %d channels user %q typing %v", len(s.Model.Channels()), s.User, s.Typing)
+	}
+	reply <- Snapshot{} // full: the App must drop its answer, not block
+	a.Update(QueryMsg{Reply: reply})
+}

@@ -8,7 +8,9 @@ import (
 	"os"
 )
 
-const usage = `usage: ircc [-n nick] [-h] [keep]
+const usage = `usage: ircc [-n nick] [-h] [keep | mcp]
+
+  mcp              MCP stdio bridge to the running TUI (Claude Code: command ircc, args [mcp])
 
   -n, --nick nick  user nick (default $USER; a taken name gets a suffix)
   -h, --help       show this help
@@ -19,6 +21,9 @@ func main() { os.Exit(run(os.Args[1:], nil)) }
 func run(args []string, ready func()) int {
 	if len(args) > 0 && args[0] == "keep" {
 		return runKeep(ready)
+	}
+	if len(args) == 1 && args[0] == "mcp" {
+		return runMCP()
 	}
 	var nick string
 	fs := flag.NewFlagSet("ircc", flag.ContinueOnError)
