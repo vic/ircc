@@ -8,7 +8,10 @@ import (
 	"os"
 )
 
-const usage = `usage: ircc [-n nick] [-h] [keep]
+const usage = `usage: ircc [-n nick] [-h] [keep | mcp]
+
+  mcp              MCP stdio bridge to the running TUI (Claude Code: command ircc, args [mcp])
+                   -n is the owner nick for the MCP instructions when no TUI runs
 
   -n, --nick nick  user nick (default $USER; a taken name gets a suffix)
   -h, --help       show this help
@@ -19,6 +22,10 @@ func main() { os.Exit(run(os.Args[1:], nil)) }
 func run(args []string, ready func()) int {
 	if len(args) > 0 && args[0] == "keep" {
 		return runKeep(ready)
+	}
+	isMCP := len(args) > 0 && args[0] == "mcp"
+	if isMCP {
+		args = args[1:]
 	}
 	var nick string
 	fs := flag.NewFlagSet("ircc", flag.ContinueOnError)
@@ -37,6 +44,9 @@ func run(args []string, ready func()) int {
 		}
 		os.Stderr.WriteString(usage)
 		return 2
+	}
+	if isMCP {
+		return runMCP(ownerNick(nick))
 	}
 	return runTUI(nick)
 }

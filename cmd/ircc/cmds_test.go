@@ -120,7 +120,7 @@ func newCmdFix(t *testing.T) *cmdFix {
 		ends: func(rooms.Room) []rooms.Endpoint {
 			return []rooms.Endpoint{{Member: rooms.Member{Session: "s7", Nick: "dave"}, Sock: "/s/7.sock", Class: peer.Prompting}}
 		},
-		sendCh:   func(ch, text string) error { f.chSent = append(f.chSent, ch+"|"+text); return nil },
+		sendCh:   func(_ author, ch, text string) error { f.chSent = append(f.chSent, ch+"|"+text); return nil },
 		inviteFn: fakeInvite,
 	}
 	return f
@@ -132,7 +132,7 @@ func (f *cmdFix) do(t *testing.T, ch, line string) error {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return f.c.do(ch, c)
+	return f.c.do(tui, ch, c)
 }
 
 func (f *cmdFix) lastRooms() ui.RoomsMsg {
@@ -293,7 +293,7 @@ func TestCmdMsgGoesToSessionChannel(t *testing.T) {
 	if len(f.chSent) != 1 || f.chSent[0] != "#alpha|hello there" {
 		t.Fatalf("sent %v", f.chSent)
 	}
-	f.c.sendCh = func(string, string) error { return errors.New("no live session") }
+	f.c.sendCh = func(author, string, string) error { return errors.New("no live session") }
 	if err := f.do(t, "#a", "/msg alpha hi"); err == nil {
 		t.Fatal("send failure must surface")
 	}

@@ -60,3 +60,18 @@ func TestAlive(t *testing.T) {
 		})
 	}
 }
+
+// TestParentPID reads field 4 after comm (I3: the /proc parent walk).
+func TestParentPID(t *testing.T) {
+	for pid, want := range map[int]int{100: 1, 200: 1} {
+		if got, err := ParentPID(fakeRoot, pid); err != nil || got != want {
+			t.Errorf("pid %d: got %d %v want %d", pid, got, err, want)
+		}
+	}
+	if _, err := ParentPID(fakeRoot, 999); err == nil { // missing pid
+		t.Error("missing pid: want error")
+	}
+	if got, err := ParentPID("/proc", os.Getpid()); err != nil || got != os.Getppid() {
+		t.Errorf("self: got %d %v want %d", got, err, os.Getppid())
+	}
+}

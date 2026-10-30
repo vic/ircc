@@ -531,6 +531,17 @@ func (r *runner) openUser(socks, pidDomain string) (*peer.Endpoint, error) {
 	return ep, err
 }
 
+// ownerNick is the owner (TUI user) nick: nick, else $USER, else "user".
+func ownerNick(nick string) string {
+	if nick == "" {
+		nick = os.Getenv("USER")
+	}
+	if nick == "" {
+		nick = "user"
+	}
+	return nick
+}
+
 // runTUI wires registry watch, transcript polling and the user endpoint into the App.
 // nick "" means $USER, and a clash is resolved by openUser.
 func runTUI(nick string, opts ...tea.ProgramOption) int {
@@ -540,13 +551,7 @@ func runTUI(nick string, opts ...tea.ProgramOption) int {
 		return 1
 	}
 	// GAP-6 (Vic gate): the user endpoint is named $USER; a session of the same name clashes.
-	user := nick
-	if user == "" {
-		user = os.Getenv("USER")
-	}
-	if user == "" {
-		user = "user"
-	}
+	user := ownerNick(nick)
 	const procRoot = "/proc"
 	if err := registry.RemoveStale(filepath.Join(claude, "sessions"), procRoot); err != nil {
 		fmt.Fprintln(os.Stderr, "ircc: remove stale:", err)
@@ -573,7 +578,8 @@ func runTUI(nick string, opts ...tea.ProgramOption) int {
 	r.rt = newRoomRT(dir, "", r.sessDir(), procRoot, self) // socks dir set by the first live session
 	r.rt.onOpen = r.serveRoom
 	defer r.rt.shutdown()
-	cs := &cmds{rt: r.rt, dir: dir, emit: r.emit, send: r.sendTo, inviteFn: rooms.Invite, ends: r.invitable, sendCh: r.send, whois: r.whois}
+	cs := &cmds{rt: r.rt, dir: dir, emit: r.emit, send: r.sendTo, inviteFn: rooms.Invite, ends: r.invitable, sendCh: r.sendAs, whois: r.whois,
+		user: func() string { return r.user }}
 	last := filepath.Join(filepath.Dir(dir), "last") // the channel ircc was on when it last quit
 	prev, _ := os.ReadFile(last)                     // none yet: start on the first channel
 	app := ui.New(m, r.send).WithUser(user).WithCmd(cs.cmd).WithLiteral(r.sendLiteral).WithResume(strings.TrimSpace(string(prev)))
@@ -581,6 +587,9 @@ func runTUI(nick string, opts ...tea.ProgramOption) int {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	mcpDone := make(chan struct{})
+	go func() { defer close(mcpDone); serveMCP(ctx, r, cs, p) }()
+	defer func() { cancel(); <-mcpDone }() // the MCP socket is gone before ircc exits
 	watchErr := make(chan error, 1)
 	go func() {
 		err := watchLoop(ctx, r, func(c context.Context) (<-chan registry.Snapshot, error) {

@@ -80,3 +80,35 @@ func TestUsageOnBadArgs(t *testing.T) {
 		}
 	}
 }
+
+// TestNewCmd: typed args (MCP, I4) follow ParseCmd's arity rules.
+func TestNewCmd(t *testing.T) {
+	tests := []struct {
+		name    CmdName
+		args    []string
+		line    string
+		wantErr bool
+	}{
+		{CmdJoin, []string{"&x"}, "/join &x", false},
+		{CmdInvite, []string{"lib1", "&review"}, "/invite lib1 &review", false},
+		{CmdMsg, []string{"#a", "two  words\nand a line"}, "/msg #a two  words\nand a line", false},
+		{CmdTopic, []string{"ship it"}, "/topic ship it", false},
+		{CmdClose, []string{"&x"}, "/close &x", false},
+		{CmdPart, nil, "/part", false},
+		{CmdJoin, nil, "", true},
+		{CmdJoin, []string{""}, "", true},
+		{CmdJoin, []string{"&a b"}, "", true}, // only a raw last arg may hold spaces
+		{CmdInvite, []string{"a b", "&x"}, "", true},
+		{CmdMsg, []string{"#a", ""}, "", true},
+		{"nosuch", []string{"x"}, "", true},
+	}
+	for _, tc := range tests {
+		got, err := NewCmd(tc.name, tc.args...)
+		if (err != nil) != tc.wantErr {
+			t.Fatalf("%s %q: err=%v wantErr=%v", tc.name, tc.args, err, tc.wantErr)
+		}
+		if err == nil && (got.Name() != tc.name || !slices.Equal(got.Args(), tc.args) || got.String() != tc.line) {
+			t.Fatalf("%s %q: got %q %q %q", tc.name, tc.args, got.Name(), got.Args(), got.String())
+		}
+	}
+}

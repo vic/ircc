@@ -72,6 +72,19 @@ type SendResultMsg struct {
 	Err      error
 }
 
+// QueryMsg asks the App for a Snapshot (MCP reads, I4). Reply must have room for
+// one value: the App never blocks on it.
+type QueryMsg struct{ Reply chan<- Snapshot }
+
+// Snapshot is what the TUI user sees: channels with scrollback and unread, the
+// modeline data, the user's nick and whether the user is typing.
+type Snapshot struct {
+	Model  model.Model
+	Info   map[int]model.SessionInfo
+	User   string
+	Typing bool
+}
+
 // CmdMsg carries a parsed command (other than /quit) to the program owner,
 // which performs the side effect (join, kick, ...).
 type CmdMsg struct{ Cmd model.Cmd }
@@ -180,6 +193,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a = a.toast(msg.L.Text, false) // runtime notes are notifications, not scrollback
 	case NickMsg:
 		a.user = msg.Nick
+	case QueryMsg:
+		select { // Model is copy-on-write: the copy is safe to read elsewhere
+		case msg.Reply <- Snapshot{Model: a.m, Info: maps.Clone(a.info), User: a.user, Typing: a.mode == Insert && a.in.Value() != ""}:
+		default:
+		}
 	case ToastMsg:
 		a = a.toast(msg.Text, msg.Err)
 	case tickMsg:

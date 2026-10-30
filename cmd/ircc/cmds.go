@@ -40,32 +40,55 @@ type cmds struct {
 	// invite is rooms.Invite (not on this base yet; T43 wires it).
 	inviteFn func(send rooms.SendFunc, dir string, roomAddr peer.Addr, room rooms.Room, ends []rooms.Endpoint, nick string) (rooms.Room, error)
 	ends     func(rooms.Room) []rooms.Endpoint
-	sendCh   func(ch, text string) error
+	sendCh   func(a author, ch, text string) error
 	whois    func(nick string) (string, error) // Claude data of a session or teammate
+	user     func() string                     // the TUI user's nick: no MCP author may carry it (R1)
 
 	mu     sync.Mutex
 	hidden map[string]bool // parted rooms: kept by the runtime, not shown
 }
 
+// author is who issued a command (R1): the owner, for a line typed in the TUI, or an
+// MCP caller with its session nick and pid. The zero author is neither: do
+// refuses it.
+type author struct {
+	owner bool
+	nick  string // MCP caller: its session nick (I3)
+	pid   int    // MCP caller: its live session pid
+}
+
+// tui is the author of every line typed in the TUI; only cmds.cmd uses it.
+var tui = author{owner: true}
+
 // cmd is the ui.App handler: the work runs in the returned tea.Cmd and an error
 // comes back as a dim NoteMsg.
 func (c *cmds) cmd(ch string, cm model.Cmd) tea.Cmd {
 	return func() tea.Msg {
-		if err := c.do(ch, cm); err != nil {
+		if err := c.do(tui, ch, cm); err != nil {
 			return ui.NoteMsg{L: dim(err.Error())}
 		}
 		return nil
 	}
 }
 
-// do runs cm; ch is the focused channel, the default room of /part /close
-// /topic /kick /names /whois.
-func (c *cmds) do(ch string, cm model.Cmd) error {
+// do runs cm for a; ch is the focused channel, the default room of /part /close
+// /topic /kick /names /whois. An MCP author with no nick, or with the TUI
+// user's, is refused: no agent can produce an owner line (R1).
+func (c *cmds) do(a author, ch string, cm model.Cmd) error {
+	if !a.owner && (a.nick == "" || strings.EqualFold(a.nick, c.user())) {
+		return fmt.Errorf("refused: %q is the TUI user; MCP never speaks as the owner", a.nick)
+	}
 	args := cm.Args()
 	switch cm.Name() {
 	case model.CmdJoin:
+		if !a.owner {
+			return c.agentJoin(a, args[0])
+		}
 		return c.join(args[0])
 	case model.CmdPart:
+		if !a.owner { // the caller leaves; the TUI keeps showing the room
+			return c.update(roomArg(args, ch), func(r *rooms.Room) error { return kick(r, a.nick) })
+		}
 		return c.part(roomArg(args, ch))
 	case model.CmdClose:
 		return c.closeRoom(roomArg(args, ch))
@@ -77,10 +100,10 @@ func (c *cmds) do(ch string, cm model.Cmd) error {
 		return c.update(ch, func(r *rooms.Room) error { return kick(r, args[0]) })
 	case model.CmdMsg:
 		t := args[0]
-		if !strings.HasPrefix(t, "#") {
+		if !strings.HasPrefix(t, "#") && !strings.HasPrefix(t, "&") {
 			t = "#" + t
 		}
-		return c.sendCh(t, args[1])
+		return c.sendCh(a, t, args[1])
 	case model.CmdNames:
 		return c.members(roomArg(args, ch))
 	case model.CmdWhois:
@@ -146,6 +169,30 @@ func (c *cmds) join(s string) error {
 	c.shown()
 	c.emit(ui.FocusMsg(n.String()))
 	return nil
+}
+
+// agentJoin opens room s when new and makes the MCP caller a member, with no
+// invite frame: the caller asked. Focus and the parted set stay the TUI user's.
+func (c *cmds) agentJoin(a author, s string) error {
+	n, err := rooms.ParseName(s)
+	if err != nil {
+		return err
+	}
+	if err := c.rt.open(n, c.pidDomain); err != nil {
+		return err
+	}
+	defer c.shown()
+	r, _ := c.rt.room(n)
+	if slices.ContainsFunc(r.Members, func(m rooms.Member) bool { return m.Nick == a.nick }) {
+		return nil
+	}
+	ends := c.ends(r)
+	i := slices.IndexFunc(ends, func(e rooms.Endpoint) bool { return e.Member.Nick == a.nick })
+	if i < 0 {
+		return fmt.Errorf("%s: no live session for %s (mode unknown?)", s, a.nick)
+	}
+	r.Members = append(slices.Clone(r.Members), ends[i].Member)
+	return c.rt.setRoom(r)
 }
 
 func (c *cmds) part(s string) error {

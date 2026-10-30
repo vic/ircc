@@ -106,22 +106,32 @@ type Conn struct{ c *net.UnixConn }
 
 // PeerPID reads SO_PEERCRED of the connection (m14).
 func (c *Conn) PeerPID() (int, error) {
+	pid, _, err := c.PeerCred()
+	return pid, err
+}
+
+// PeerCred reads the pid and uid of SO_PEERCRED (MCP I1: same uid only).
+func (c *Conn) PeerCred() (pid, uid int, err error) {
 	rc, err := c.c.SyscallConn()
 	if err != nil {
-		return 0, fmt.Errorf("peer: syscallconn: %w", err)
+		return 0, 0, fmt.Errorf("peer: syscallconn: %w", err)
 	}
 	var ucred *syscall.Ucred
 	var gerr error
 	if err := rc.Control(func(fd uintptr) {
 		ucred, gerr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
 	}); err != nil {
-		return 0, fmt.Errorf("peer: control: %w", err)
+		return 0, 0, fmt.Errorf("peer: control: %w", err)
 	}
 	if gerr != nil {
-		return 0, fmt.Errorf("peer: SO_PEERCRED: %w", gerr)
+		return 0, 0, fmt.Errorf("peer: SO_PEERCRED: %w", gerr)
 	}
-	return int(ucred.Pid), nil
+	return int(ucred.Pid), int(ucred.Uid), nil
 }
+
+// Read and Write make a Conn the stream of a long-lived MCP session.
+func (c *Conn) Read(b []byte) (int, error)  { return c.c.Read(b) }
+func (c *Conn) Write(b []byte) (int, error) { return c.c.Write(b) }
 
 // Lines yields one frame per line (m22).
 func (c *Conn) Lines() *bufio.Scanner {
