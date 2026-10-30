@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -43,11 +44,12 @@ func newMCP(t *testing.T, parent int) *mcpFix {
 		t.Fatal(err)
 	}
 	x.r.procRoot = proc
-	addr, err := peer.ParseAddr("uds:/s/ircc-vic.sock")
+	addr, err := peer.ParseAddr("uds:/s/ircc-owen.sock")
 	if err != nil {
 		t.Fatal(err)
 	}
-	x.r.ep, x.r.epDir = &peer.Endpoint{Name: "vic", Addr: addr}, "/s" // user endpoint stand-in: # sends need it
+	x.r.ep, x.r.epDir = &peer.Endpoint{Name: "owen", Addr: addr}, "/s" // user endpoint stand-in: # sends need it
+	x.r.user = "owen"                                                  // the owner nick of this fixture
 	x.cs = &cmds{rt: x.r.rt, dir: x.f.dir, emit: x.r.emit, send: x.r.sendTo, inviteFn: rooms.Invite,
 		ends: x.r.invitable, sendCh: x.r.sendAs, whois: x.r.whois, user: func() string { return x.r.user }}
 	m, err := model.New(10)
@@ -59,13 +61,13 @@ func newMCP(t *testing.T, parent int) *mcpFix {
 	for _, l := range []model.Line{
 		{At: now.Add(-time.Hour), Nick: "alice", Text: "old needle"},
 		{At: now, Nick: "alice", Text: "* Bash: go test", Kind: model.Tool},
-		{At: now, Nick: "vic", Text: "new needle"},
+		{At: now, Nick: "owen", Text: "new needle"},
 	} {
 		if m, err = m.AddLine("#alice", l); err != nil {
 			t.Fatal(err)
 		}
 	}
-	snap := func() (ui.Snapshot, error) { return ui.Snapshot{Model: m, User: "vic", Typing: true}, nil }
+	snap := func() (ui.Snapshot, error) { return ui.Snapshot{Model: m, User: "owen", Typing: true}, nil }
 	x.sock = filepath.Join(x.f.dir+"-mcp", "mcp.sock")
 	l, err := listenMCP(x.sock)
 	if err != nil {
@@ -178,7 +180,7 @@ func TestMCPEveryTool(t *testing.T) {
 	x := newMCP(t, 101)
 	c := x.dial(t)
 	init, ok := c.rpc("initialize", map[string]any{"protocolVersion": "2025-06-18"})
-	if !ok || !strings.Contains(fmt.Sprint(init["result"]), "&vic") {
+	if !ok || !strings.Contains(fmt.Sprint(init["result"]), "&owen") {
 		t.Fatalf("initialize %v", init)
 	}
 	if l, _ := c.rpc("tools/list", nil); len(l["result"].(map[string]any)["tools"].([]any)) != len(mcp.Tools()) {
@@ -186,10 +188,10 @@ func TestMCPEveryTool(t *testing.T) {
 	}
 
 	list := c.ok("ircc_list", nil)
-	if !slices.Equal(x.members(t, "&vic"), []string{"alice"}) { // I6: the first call joins &vic
-		t.Fatalf("&vic members %v", x.members(t, "&vic"))
+	if !slices.Equal(x.members(t, "&owen"), []string{"alice"}) { // I6: the first call joins &owen
+		t.Fatalf("&owen members %v", x.members(t, "&owen"))
 	}
-	for _, want := range []string{`"name":"#alice"`, `"name":"&r"`, `"kind":"&"`, `"unread":`, `"nick":"vic","status":"typing"`, `"nick":"bob","status":"idle"`} {
+	for _, want := range []string{`"name":"#alice"`, `"name":"&r"`, `"kind":"&"`, `"unread":`, `"nick":"owen","status":"typing"`, `"nick":"bob","status":"idle"`} {
 		if !strings.Contains(list, want) {
 			t.Errorf("ircc_list lacks %s: %s", want, list)
 		}
@@ -249,8 +251,8 @@ func TestMCPEveryTool(t *testing.T) {
 	}
 
 	// I5: each mutating call shows a dim line; errors are tool errors, never notes.
-	if !slices.Contains(x.lines("&new"), "|alice via mcp: /invite bob &new") || !slices.Contains(x.lines("&vic"), "|alice via mcp: /join &vic") {
-		t.Fatalf("via lines &new %q &vic %q", x.lines("&new"), x.lines("&vic"))
+	if !slices.Contains(x.lines("&new"), "|alice via mcp: /invite bob &new") || !slices.Contains(x.lines("&owen"), "|alice via mcp: /join &owen") {
+		t.Fatalf("via lines &new %q &owen %q", x.lines("&new"), x.lines("&owen"))
 	}
 	if n := x.notes(); len(n) != 0 {
 		t.Fatalf("notes %q", n)
@@ -280,29 +282,29 @@ func TestMCPMsgNeverAsTUINick(t *testing.T) {
 
 	y := newMCP(t, 104)
 	y.r.mu.Lock() // the MCP server already serves: guard the maps it reads
-	y.r.live[104] = registry.Entry{PID: 104, SessionID: "s-vic", SocketPath: "/s/vic.sock", Name: "vic"}
-	y.r.names[104], y.r.tails[104] = "#vic", &tail{mode: "default"}
+	y.r.live[104] = registry.Entry{PID: 104, SessionID: "s-owen", SocketPath: "/s/owen.sock", Name: "owen"}
+	y.r.names[104], y.r.tails[104] = "#owen", &tail{mode: "default"}
 	y.r.mu.Unlock()
 	d := y.dial(t)
-	if text, isErr := d.call("ircc_msg", map[string]any{"to": "#bob", "text": "I am vic"}); !isErr || !strings.Contains(text, "TUI user") {
-		t.Fatalf("caller named vic: %q %v", text, isErr)
+	if text, isErr := d.call("ircc_msg", map[string]any{"to": "#bob", "text": "I am owen"}); !isErr || !strings.Contains(text, "TUI user") {
+		t.Fatalf("caller named owen: %q %v", text, isErr)
 	}
 	if fs := y.framesTo("/s/bob.sock"); len(fs) != 0 {
-		t.Fatalf("sent as vic: %+v", fs)
+		t.Fatalf("sent as owen: %+v", fs)
 	}
 }
 
-// TestMCPAuthorNeverVic (NEG, R1): cmds.do refuses every mutating command from
+// TestMCPAuthorNeverOwner (NEG, R1): cmds.do refuses every mutating command from
 // an MCP author whose nick is the TUI user's (any case), and an MCP author is
 // never the TUI author.
-func TestMCPAuthorNeverVic(t *testing.T) {
+func TestMCPAuthorNeverOwner(t *testing.T) {
 	x := newMCP(t, 101)
 	for _, line := range []string{"/join &z", "/part &r", "/close &r", "/invite bob &r", "/kick bob", "/topic t", "/msg #bob hi", "/msg &r hi"} {
 		cm, err := model.ParseCmd(line)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, nick := range []string{"vic", "VIC", ""} {
+		for _, nick := range []string{"owen", "OWEN", ""} {
 			if err := x.cs.do(author{nick: nick, pid: 101}, "&r", cm); err == nil {
 				t.Errorf("%s as MCP %q: want refused", line, nick)
 			}
@@ -311,12 +313,51 @@ func TestMCPAuthorNeverVic(t *testing.T) {
 	if len(x.socks()) != 0 || !slices.Equal(x.members(t, "&r"), []string{"alice", "bob", "scout@alice"}) {
 		t.Fatalf("a refused command acted: frames %v members %v", x.socks(), x.members(t, "&r"))
 	}
-	if a, ok := x.r.callerOf(os.Getpid()); !ok || a.vic || a.nick != "alice" {
+	if a, ok := x.r.callerOf(os.Getpid()); !ok || a.owner || a.nick != "alice" {
 		t.Fatalf("callerOf %+v %v", a, ok)
 	}
 	for _, l := range x.lines("&r") {
-		if strings.HasPrefix(l, "vic|") {
-			t.Fatalf("a vic line in &r: %q", l)
+		if strings.HasPrefix(l, "owen|") {
+			t.Fatalf("an owner line in &r: %q", l)
 		}
+	}
+}
+
+// TestOwnerRoomFromNick (NEG): the trusted room is &<owner nick>, computed.
+func TestOwnerRoomFromNick(t *testing.T) {
+	if got := ownerRoom("alice"); got != "&alice" {
+		t.Fatalf("ownerRoom %q", got)
+	}
+}
+
+// TestRunMCPOwnerFlag: `ircc mcp -n alice` with no TUI answers initialize with
+// instructions naming alice.
+func TestRunMCPOwnerFlag(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir()) // no mcp.sock there: no TUI
+	rd, wr, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, inw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldIn, oldOut := os.Stdin, os.Stdout
+	os.Stdin, os.Stdout = in, wr
+	defer func() { os.Stdin, os.Stdout = oldIn, oldOut }()
+	if _, err := inw.WriteString(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	_ = inw.Close()
+	if code := run([]string{"mcp", "-n", "alice"}, nil); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	_ = wr.Close()
+	b, err := io.ReadAll(rd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := string(b); !strings.Contains(s, "&alice") || strings.Contains(strings.ToLower(s), "vic") {
+		t.Fatalf("initialize %s", s)
 	}
 }

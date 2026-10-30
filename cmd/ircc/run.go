@@ -531,6 +531,17 @@ func (r *runner) openUser(socks, pidDomain string) (*peer.Endpoint, error) {
 	return ep, err
 }
 
+// ownerNick is the owner (TUI user) nick: nick, else $USER, else "user".
+func ownerNick(nick string) string {
+	if nick == "" {
+		nick = os.Getenv("USER")
+	}
+	if nick == "" {
+		nick = "user"
+	}
+	return nick
+}
+
 // runTUI wires registry watch, transcript polling and the user endpoint into the App.
 // nick "" means $USER, and a clash is resolved by openUser.
 func runTUI(nick string, opts ...tea.ProgramOption) int {
@@ -540,13 +551,7 @@ func runTUI(nick string, opts ...tea.ProgramOption) int {
 		return 1
 	}
 	// GAP-6 (Vic gate): the user endpoint is named $USER; a session of the same name clashes.
-	user := nick
-	if user == "" {
-		user = os.Getenv("USER")
-	}
-	if user == "" {
-		user = "user"
-	}
+	user := ownerNick(nick)
 	const procRoot = "/proc"
 	if err := registry.RemoveStale(filepath.Join(claude, "sessions"), procRoot); err != nil {
 		fmt.Fprintln(os.Stderr, "ircc: remove stale:", err)

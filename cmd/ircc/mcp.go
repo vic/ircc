@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	vicRoom      = "&vic"          // vic's trusted channel; every MCP caller joins it (I6)
 	maxWalk      = 64              // /proc parent steps from the bridge to its session (I3)
 	queryTimeout = 2 * time.Second // the TUI answers a ui.QueryMsg within this
 	historyMax   = ringCap
@@ -40,12 +39,12 @@ func mcpSock() (string, error) {
 }
 
 // runMCP is `ircc mcp`, the stateless stdio bridge (I2).
-func runMCP() int {
+func runMCP(owner string) int {
 	sock, err := mcpSock()
 	if err != nil {
 		sock = "" // no runtime dir: no TUI listens; the bridge answers with the I2 error
 	}
-	if err := mcp.Bridge(os.Stdin, os.Stdout, sock); err != nil {
+	if err := mcp.Bridge(os.Stdin, os.Stdout, sock, owner); err != nil {
 		fmt.Fprintln(os.Stderr, "ircc mcp:", err)
 		return 1
 	}
@@ -95,7 +94,7 @@ type mcpSrv struct {
 	uid  int
 
 	mu     sync.Mutex
-	joined map[string]bool // callers already in &vic (I6)
+	joined map[string]bool // callers already in the owner room (I6)
 }
 
 func newMCPSrv(r *runner, cs *cmds, snap func() (ui.Snapshot, error)) *mcpSrv {
@@ -125,7 +124,7 @@ func (s *mcpSrv) handle(c *peer.Conn) {
 	if !ok {
 		return
 	}
-	_ = mcp.Serve(c, c, func(name string, args json.RawMessage) (string, error) { return s.call(a, name, args) })
+	_ = mcp.Serve(c, c, s.cs.user(), func(name string, args json.RawMessage) (string, error) { return s.call(a, name, args) })
 }
 
 // callerOf walks the /proc parent chain from pid to a live session: that
@@ -156,7 +155,7 @@ type toolArgs struct {
 }
 
 func (s *mcpSrv) call(a author, name string, raw json.RawMessage) (string, error) {
-	s.joinVic(a)
+	s.joinOwner(a)
 	var in toolArgs
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
@@ -232,13 +231,17 @@ func (s *mcpSrv) mutate(a author, ch string, name model.CmdName, args ...string)
 	return nil
 }
 
-// joinVic makes a a member of &vic on its first call (I6); a failure is retried
+// ownerRoom is the owner's trusted channel, &<owner nick>; every MCP caller joins it (I6).
+func ownerRoom(owner string) string { return "&" + owner }
+
+// joinOwner makes a a member of the owner room on its first call (I6); a failure is retried
 // on the next call.
-func (s *mcpSrv) joinVic(a author) {
+func (s *mcpSrv) joinOwner(a author) {
+	room := ownerRoom(s.cs.user())
 	s.mu.Lock()
 	done := s.joined[a.nick]
 	s.mu.Unlock()
-	if done || s.mutate(a, vicRoom, model.CmdJoin, vicRoom) != nil {
+	if done || s.mutate(a, room, model.CmdJoin, room) != nil {
 		return
 	}
 	s.mu.Lock()
@@ -425,7 +428,7 @@ func (s *mcpSrv) grep(in toolArgs) (string, error) {
 // line under its nick and its own permission class, never the target's
 // (R1; the class rule of rooms.AgentWriter, R8). Unknown mode fails closed.
 func (r *runner) sendAs(a author, ch, text string) error {
-	if a.vic {
+	if a.owner {
 		return r.send(ch, text)
 	}
 	r.mu.Lock()

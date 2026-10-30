@@ -48,17 +48,17 @@ type cmds struct {
 	hidden map[string]bool // parted rooms: kept by the runtime, not shown
 }
 
-// author is who issued a command (R1): vic, for a line typed in the TUI, or an
+// author is who issued a command (R1): the owner, for a line typed in the TUI, or an
 // MCP caller with its session nick and pid. The zero author is neither: do
 // refuses it.
 type author struct {
-	vic  bool
-	nick string // MCP caller: its session nick (I3)
-	pid  int    // MCP caller: its live session pid
+	owner bool
+	nick  string // MCP caller: its session nick (I3)
+	pid   int    // MCP caller: its live session pid
 }
 
 // tui is the author of every line typed in the TUI; only cmds.cmd uses it.
-var tui = author{vic: true}
+var tui = author{owner: true}
 
 // cmd is the ui.App handler: the work runs in the returned tea.Cmd and an error
 // comes back as a dim NoteMsg.
@@ -73,20 +73,20 @@ func (c *cmds) cmd(ch string, cm model.Cmd) tea.Cmd {
 
 // do runs cm for a; ch is the focused channel, the default room of /part /close
 // /topic /kick /names /whois. An MCP author with no nick, or with the TUI
-// user's, is refused: no agent can produce a vic line (R1).
+// user's, is refused: no agent can produce an owner line (R1).
 func (c *cmds) do(a author, ch string, cm model.Cmd) error {
-	if !a.vic && (a.nick == "" || strings.EqualFold(a.nick, c.user())) {
-		return fmt.Errorf("refused: %q is the TUI user; MCP never speaks as vic", a.nick)
+	if !a.owner && (a.nick == "" || strings.EqualFold(a.nick, c.user())) {
+		return fmt.Errorf("refused: %q is the TUI user; MCP never speaks as the owner", a.nick)
 	}
 	args := cm.Args()
 	switch cm.Name() {
 	case model.CmdJoin:
-		if !a.vic {
+		if !a.owner {
 			return c.agentJoin(a, args[0])
 		}
 		return c.join(args[0])
 	case model.CmdPart:
-		if !a.vic { // the caller leaves; the TUI keeps showing the room
+		if !a.owner { // the caller leaves; the TUI keeps showing the room
 			return c.update(roomArg(args, ch), func(r *rooms.Room) error { return kick(r, a.nick) })
 		}
 		return c.part(roomArg(args, ch))

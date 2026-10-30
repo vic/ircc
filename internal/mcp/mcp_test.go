@@ -16,7 +16,7 @@ import (
 func exchange(t *testing.T, call CallFunc, lines ...string) []map[string]any {
 	t.Helper()
 	var out strings.Builder
-	if err := Serve(strings.NewReader(strings.Join(lines, "\n")+"\n"), &out, call); err != nil {
+	if err := Serve(strings.NewReader(strings.Join(lines, "\n")+"\n"), &out, "owen", call); err != nil {
 		t.Fatal(err)
 	}
 	return decode(t, out.String())
@@ -61,7 +61,7 @@ func TestServe(t *testing.T) {
 		t.Fatalf("want 8 responses, got %d: %v", len(got), got)
 	}
 	init := got[0]["result"].(map[string]any)
-	if init["protocolVersion"] != "2025-03-26" || !strings.Contains(init["instructions"].(string), "&vic") {
+	if init["protocolVersion"] != "2025-03-26" || !strings.Contains(init["instructions"].(string), "&owen") {
 		t.Fatalf("initialize %v", init)
 	}
 	if tools := got[1]["result"].(map[string]any)["tools"].([]any); len(tools) != len(Tools()) || len(tools) != 12 {
@@ -116,7 +116,7 @@ func TestBridgeNoTUI(t *testing.T) {
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ircc_list","arguments":{}}}`,
 	}, "\n") + "\n"
 	var out strings.Builder
-	if err := Bridge(strings.NewReader(in), &out, filepath.Join(t.TempDir(), "mcp.sock")); err != nil {
+	if err := Bridge(strings.NewReader(in), &out, filepath.Join(t.TempDir(), "mcp.sock"), "owen"); err != nil {
 		t.Fatal(err)
 	}
 	got := decode(t, out.String())
@@ -155,10 +155,32 @@ func TestBridgeCopies(t *testing.T) {
 		}
 	}()
 	var out strings.Builder
-	if err := Bridge(strings.NewReader("a\nb\n"), &out, sock); err != nil {
+	if err := Bridge(strings.NewReader("a\nb\n"), &out, sock, "owen"); err != nil {
 		t.Fatal(err)
 	}
 	if out.String() != "got a\ngot b\n" {
 		t.Fatalf("bridge out %q", out.String())
+	}
+}
+
+// TestInstructionsOwner (NEG): the instructions name the given owner and its
+// room, and never a hardcoded nick.
+func TestInstructionsOwner(t *testing.T) {
+	s := Instructions("alice")
+	if !strings.Contains(s, "&alice") || !strings.Contains(s, "alice's lines") || strings.Contains(strings.ToLower(s), "vic") {
+		t.Fatalf("instructions %q", s)
+	}
+}
+
+// TestBridgeNoTUIOwner: with no TUI, the bridge's initialize names the owner.
+func TestBridgeNoTUIOwner(t *testing.T) {
+	var out strings.Builder
+	in := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` + "\n"
+	if err := Bridge(strings.NewReader(in), &out, filepath.Join(t.TempDir(), "mcp.sock"), "alice"); err != nil {
+		t.Fatal(err)
+	}
+	got := decode(t, out.String())
+	if len(got) != 1 || !strings.Contains(got[0]["result"].(map[string]any)["instructions"].(string), "&alice") {
+		t.Fatalf("responses %v", got)
 	}
 }
