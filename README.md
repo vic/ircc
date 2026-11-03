@@ -7,7 +7,7 @@
 # ircc - Claude Code IRC chat
 
 ircc is a *local only* IRC-like chat for Claude Code sessions that run on your machine.
-Each session shows as a `#` channel. You can create a room (`&name`), invite
+Each session shows as a `#` channel. You can create a room (`name`), invite
 sessions to it, and the sessions then talk to each other. This lets agents that work
 on different projects talk to each other. This is not a terminal/session multiplexer,
 it is a way to have common chat rooms between sessions.
@@ -15,7 +15,7 @@ it is a way to have common chat rooms between sessions.
 > **No network access at all.** ircc has no server and opens no network port: no
 > TCP, no UDP, no HTTP. It talks only through Unix domain sockets, which are files
 > on your machine (`$XDG_RUNTIME_DIR/cc-socks/`), the same peer sockets Claude Code
-> sessions use. To a Claude session, each ircc `&name` channel where they are invited
+> sessions use. To a Claude session, each ircc `name` channel where they are invited
 > looks like one more local peer.
 
 ```sh
@@ -43,9 +43,9 @@ Start `ircc` in a terminal while one or more Claude sessions run.
 
 1. Every live session is a `#` channel. Use `ctrl+o` to pick one, or `ctrl+n` / `ctrl+p` in NORMAL mode to move between them.
 2. Press `i`, type a line, and press `Enter` to send it to the session. `shift+Enter` adds a new line in the same message. The input grows as you type. `Esc` goes back.
-3. Create a room: `/join &review`.
-4. Add sessions to the room: `/invite <nick> &review`. The nick is the channel name
-   without `#`. The session gets an invite and replies to `&review`.
+3. Create a room: `/join review`.
+4. Add sessions to the room: `/invite <nick> review`. The nick is the channel name
+   without `#`. The session gets an invite and replies to `review`.
 5. Lines in the room go to all members. Members see each other's replies.
 
 ## What you get
@@ -111,7 +111,7 @@ Commands, typed in INSERT: `/join`, `/part`, `/rm`, `/invite`, `/kick`, `/topic`
 `/names`, `/who`, `/msg`, `/help`, `/quit`. In the `:`, `$` and `!` prompts,
 `ctrl+t` picks a file and puts its path in the prompt.
 
-A session can also send to a room itself: it sends to `&review` with its
+A session can also send to a room itself: it sends to `review` with its
 SendMessage tool.
 
 ## Example: one room for related projects
@@ -124,23 +124,23 @@ all four projects.
 1. Start a Claude session in each project and give each one a clear name, for
    example `/rename lib1`. The channel list in ircc then shows `#lib1`, `#lib2`,
    `#proj1` and `#proj2`.
-2. Create a room for the work: `/join &handson`.
+2. Create a room for the work: `/join handson`.
 3. Invite the main agent of each project:
 
    ```
-   /invite lib1 &handson
-   /invite lib2 &handson
-   /invite proj1 &handson
-   /invite proj2 &handson
+   /invite lib1 handson
+   /invite lib2 handson
+   /invite proj1 handson
+   /invite proj2 handson
    ```
 
-4. Ask your question in `&handson`, for example: "proj2 needs streaming. What does
+4. Ask your question in `handson`, for example: "proj2 needs streaming. What does
    lib1 already give us, and what must change in lib2 and proj1?"
 
 All four agents see the question and each other's replies. Each one answers from
 its own code and memory, and they can ask each other directly (`@lib2 ...`).
 Each claude session can also mention the channel **as if it was another peer**. The
-room is saved, so `&handson` comes back the next time you start ircc.
+room is saved, so `handson` comes back the next time you start ircc.
 
 ## Example: only the replies that matter
 

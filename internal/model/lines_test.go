@@ -134,8 +134,8 @@ func TestSessionNamesAndMembersSanitized(t *testing.T) {
 	if n := m.Channels()[0].Name; strings.ContainsAny(n, "\x1b\x07") {
 		t.Fatalf("channel name %q", n)
 	}
-	m.chans = append(m.chans, Channel{Name: "&r", Kind: RoomChan})
-	m, err := m.WithRoomMembers("&r", []Member{{Nick: "bo\x1b[2Jb", PID: 2}})
+	m.chans = append(m.chans, Channel{Name: "r", Kind: RoomChan})
+	m, err := m.WithRoomMembers("r", []Member{{Nick: "bo\x1b[2Jb", PID: 2}})
 	if err != nil {
 		t.Fatal(err)
 	}

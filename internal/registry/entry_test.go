@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const good = `{"pid":42,"sessionId":"s","cwd":"/w","name":"&a","kind":"interactive","status":"idle","messagingSocketPath":"/run/x/42.sock","peerProtocol":1,"peerFeatures":["notify_idle"],"procStart":"123","pidDomain":"d"}`
+const good = `{"pid":42,"sessionId":"s","cwd":"/w","name":"a","kind":"interactive","status":"idle","messagingSocketPath":"/run/x/42.sock","peerProtocol":1,"peerFeatures":["notify_idle"],"procStart":"123","pidDomain":"d"}`
 
 func TestParseEntry(t *testing.T) {
 	rows := []struct {
@@ -14,7 +14,7 @@ func TestParseEntry(t *testing.T) {
 		wantErr          bool
 		want             Entry
 	}{
-		{name: "ok", file: "42.json", json: good, want: Entry{PID: 42, SessionID: "s", Cwd: "/w", Name: "&a",
+		{name: "ok", file: "42.json", json: good, want: Entry{PID: 42, SessionID: "s", Cwd: "/w", Name: "a",
 			Kind: Interactive, Status: Idle, SocketPath: "/run/x/42.sock", PeerProtocol: 1,
 			PeerFeatures: []string{"notify_idle"}, ProcStart: "123", PIDDomain: "d"}},
 		{name: "bg busy", file: "42.json", json: `{"pid":42,"kind":"bg","status":"busy","messagingSocketPath":"/s","procStart":"1"}`,

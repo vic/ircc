@@ -9,10 +9,10 @@ import (
 	"strings"
 )
 
-const usage = `usage: ircc [-n nick] [-room &name] [-invite nick,...] [-h] [keep]
+const usage = `usage: ircc [-n nick] [-room name] [-invite nick,...] [-h] [keep]
 
   -n, --nick nick       user nick (default $USER; a taken name gets a suffix)
-  -room &name           open this room at start and keep it open
+  -room name           open this room at start and keep it open
   -invite nick,...      invite these sessions to -room as soon as each is awake
   -h, --help            show this help
 `

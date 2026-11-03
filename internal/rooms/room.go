@@ -27,8 +27,8 @@ func (n Name) String() string { return n.s }
 // ParseName wants `&` plus >=1 char, valid UTF-8, none of / \ " < > , space or control,
 // and EncName(s) <= maxEncName so the endpoint path fits in sun_path.
 func ParseName(s string) (Name, error) {
-	if !strings.HasPrefix(s, "&") || len(s) == 1 || !utf8.ValidString(s) {
-		return Name{}, fmt.Errorf("rooms: name %q: want &<name> in valid UTF-8", s)
+	if s == "" || strings.HasPrefix(s, "#") || !utf8.ValidString(s) {
+		return Name{}, fmt.Errorf("rooms: name %q: want a name not starting with # and valid UTF-8", s)
 	}
 	for _, r := range s {
 		if strings.ContainsRune(`/\"<>,`, r) || unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {

@@ -11,7 +11,7 @@ import (
 
 func logName(t *testing.T) Name {
 	t.Helper()
-	n, err := ParseName("&review")
+	n, err := ParseName("review")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestLogAppendLoad(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	p := filepath.Join(dir, "%26review.log")
+	p := filepath.Join(dir, "review.log")
 	if fi, err := os.Stat(p); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Fatalf("log file: %v %v", fi, err)
 	}
@@ -80,7 +80,7 @@ func TestLogRejects(t *testing.T) {
 func TestLogSymlinkRejected(t *testing.T) {
 	dir, n := t.TempDir(), logName(t)
 	target := filepath.Join(t.TempDir(), "victim")
-	if err := os.Symlink(target, filepath.Join(dir, "%26review.log")); err != nil {
+	if err := os.Symlink(target, filepath.Join(dir, "review.log")); err != nil {
 		t.Fatal(err)
 	}
 	if err := AppendLine(dir, n, ll(0)); err == nil {
@@ -99,7 +99,7 @@ func TestLogMalformedSkippedAndCounted(t *testing.T) {
 	if err := AppendLine(dir, n, ll(0)); err != nil {
 		t.Fatal(err)
 	}
-	p := filepath.Join(dir, "%26review.log")
+	p := filepath.Join(dir, "review.log")
 	f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +122,7 @@ func TestLogMalformedSkippedAndCounted(t *testing.T) {
 
 func TestLogReadCappedFromEnd(t *testing.T) {
 	dir, n := t.TempDir(), logName(t)
-	p := filepath.Join(dir, "%26review.log")
+	p := filepath.Join(dir, "review.log")
 	big := LogLine{Time: ll(0).Time, Nick: "a", Text: strings.Repeat("x", 1000)}
 	for i := 0; i < 1200; i++ { // ~1.2 MiB > 1 MiB cap
 		if err := AppendLine(dir, n, big); err != nil {
@@ -146,7 +146,7 @@ func TestLogReadCappedFromEnd(t *testing.T) {
 
 func TestLogCompactsWhenOverMax(t *testing.T) {
 	dir, n := t.TempDir(), logName(t)
-	p := filepath.Join(dir, "%26review.log")
+	p := filepath.Join(dir, "review.log")
 	big := strings.Repeat("x", 64<<10)
 	for i := 0; i < 80; i++ { // ~5 MiB > maxLog
 		if err := AppendLine(dir, n, LogLine{Time: ll(i).Time, Nick: "a", Text: big + strconv.Itoa(i)}); err != nil {

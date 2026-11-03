@@ -17,7 +17,7 @@ func roomModel(t *testing.T, lines ...Line) Model {
 	for _, l := range lines {
 		r.Push(l)
 	}
-	m.chans = []Channel{{Name: "#a", Kind: SessionChan, PID: 1, Unread: 2}, {Name: "&review", Kind: RoomChan, PID: 0, Unread: 3, Lines: r, Members: []Member{{"a", 2}, {"b", 3}}}}
+	m.chans = []Channel{{Name: "#a", Kind: SessionChan, PID: 1, Unread: 2}, {Name: "review", Kind: RoomChan, PID: 0, Unread: 3, Lines: r, Members: []Member{{"a", 2}, {"b", 3}}}}
 	return m
 }
 
@@ -40,16 +40,16 @@ func TestStatus(t *testing.T) {
 		{"session bypass is red", roomModel(t), 0, "INSERT", map[int]SessionInfo{1: si(byp)},
 			Modeline{Mode: "INSERT", Left: "#a idle bypassPermissions", Right: "5 unread 15:04", Red: true}},
 		{"room: member bypass, lines/min", roomModel(t, rate...), 1, "NORMAL", map[int]SessionInfo{2: si(byp), 3: si(def)},
-			Modeline{Mode: "NORMAL", Left: "&review 2 members 1 bypass 0 ? 2/min", Right: "2 unread 15:04", Red: true}},
+			Modeline{Mode: "NORMAL", Left: "review 2 members 1 bypass 0 ? 2/min", Right: "2 unread 15:04", Red: true}},
 		{"room without bypass is not red", roomModel(t), 1, "NORMAL", map[int]SessionInfo{2: si(def), 3: si(def)},
-			Modeline{Mode: "NORMAL", Left: "&review 2 members 0 bypass 0 ? 0/min", Right: "2 unread 15:04"}},
+			Modeline{Mode: "NORMAL", Left: "review 2 members 0 bypass 0 ? 0/min", Right: "2 unread 15:04"}},
 		{"bypass pid not a member is ignored", roomModel(t), 1, "NORMAL", map[int]SessionInfo{2: si(def), 3: si(def), 9: si(byp)},
-			Modeline{Mode: "NORMAL", Left: "&review 2 members 0 bypass 0 ? 0/min", Right: "2 unread 15:04"}},
+			Modeline{Mode: "NORMAL", Left: "review 2 members 0 bypass 0 ? 0/min", Right: "2 unread 15:04"}},
 		// NEG: fail safe, unknown is red
 		{"member without info is unknown and red", roomModel(t), 1, "NORMAL", map[int]SessionInfo{3: si(def)},
-			Modeline{Mode: "NORMAL", Left: "&review 2 members 0 bypass 1 ? 0/min", Right: "2 unread 15:04", Red: true}},
+			Modeline{Mode: "NORMAL", Left: "review 2 members 0 bypass 1 ? 0/min", Right: "2 unread 15:04", Red: true}},
 		{"member with unknown mode is unknown and red", roomModel(t), 1, "NORMAL", map[int]SessionInfo{2: si("weird"), 3: si(def)},
-			Modeline{Mode: "NORMAL", Left: "&review 2 members 0 bypass 1 ? 0/min", Right: "2 unread 15:04", Red: true}},
+			Modeline{Mode: "NORMAL", Left: "review 2 members 0 bypass 1 ? 0/min", Right: "2 unread 15:04", Red: true}},
 		{"unknown session info", roomModel(t), 0, "NORMAL", nil,
 			Modeline{Mode: "NORMAL", Left: "#a ? ?", Right: "5 unread 15:04", Red: true}},
 		{"session with unknown mode is red", roomModel(t), 0, "NORMAL", map[int]SessionInfo{1: {Status: "idle", PermMode: "weird"}},
@@ -80,7 +80,7 @@ func mustNew(t *testing.T) Model {
 
 func TestWithRoomMembers(t *testing.T) {
 	m := roomModel(t)
-	m2, err := m.WithRoomMembers("&review", []Member{{"x", 1}, {"y", 2}, {"z", 3}})
+	m2, err := m.WithRoomMembers("review", []Member{{"x", 1}, {"y", 2}, {"z", 3}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestWithRoomMembers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := Status(m2, "NORMAL", nil, t0).Left; got != "&review 3 members 0 bypass 3 ? 0/min" {
+	if got := Status(m2, "NORMAL", nil, t0).Left; got != "review 3 members 0 bypass 3 ? 0/min" {
 		t.Fatalf("left %q", got)
 	}
 	// copy on read: mutating a returned slice does not reach the model
@@ -104,7 +104,7 @@ func TestWithRoomMembers(t *testing.T) {
 	}
 	// copy on write: caller's slice is not aliased
 	in := []Member{{"x", 1}}
-	m3, _ := m.WithRoomMembers("&review", in)
+	m3, _ := m.WithRoomMembers("review", in)
 	in[0].Nick = "y"
 	if m3.Channels()[1].Members[0].Nick != "x" {
 		t.Fatal("input aliased")
@@ -116,14 +116,14 @@ func TestWithRoomMembersErrors(t *testing.T) {
 	if _, err := m.WithRoomMembers("#a", []Member{{"x", 1}}); !errors.Is(err, ErrNotRoom) {
 		t.Fatalf("session chan: %v", err)
 	}
-	if _, err := m.WithRoomMembers("&nope", nil); !errors.Is(err, ErrUnknownChannel) {
+	if _, err := m.WithRoomMembers("nope", nil); !errors.Is(err, ErrUnknownChannel) {
 		t.Fatalf("unknown: %v", err)
 	}
 }
 
 func TestStatusDistinctPIDs(t *testing.T) {
 	m := roomModel(t)
-	m, err := m.WithRoomMembers("&review", []Member{{"parent", 2}, {"teammate", 2}, {"ghost", 7}, {"ghost2", 7}})
+	m, err := m.WithRoomMembers("review", []Member{{"parent", 2}, {"teammate", 2}, {"ghost", 7}, {"ghost2", 7}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestStatusDistinctPIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 	info := map[int]SessionInfo{2: {Status: "idle", PermMode: "bypassPermissions"}}
-	want := "&review 4 members 1 bypass 1 ? 0/min"
+	want := "review 4 members 1 bypass 1 ? 0/min"
 	if got := Status(m, "NORMAL", info, t0).Left; got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}

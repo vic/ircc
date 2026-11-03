@@ -105,12 +105,12 @@ func TestWheelScrollsAndNickPane(t *testing.T) {
 	if got := chanNicks(a.m.Current(), a.user); len(got) != 2 || got[0] != "vic" || got[1] != "a" {
 		t.Fatalf("session nicks %v", got)
 	}
-	next, _ := a.Update(RoomsMsg{"&r"})
-	next, _ = next.(App).Update(MembersMsg{Ch: "&r", Nicks: []string{"foo", "bar"}})
+	next, _ := a.Update(RoomsMsg{"r"})
+	next, _ = next.(App).Update(MembersMsg{Ch: "r", Nicks: []string{"foo", "bar"}})
 	next, _ = next.(App).Update(MembersMsg{Ch: "#a", Nicks: []string{"x"}}) // NEG: # has no members
 	for _, c := range next.(App).m.Channels() {
 		got := chanNicks(c, "vic")
-		if c.Name == "&r" && strings.Join(got, ",") != "vic,foo,bar" || c.Name == "#a" && strings.Join(got, ",") != "vic,a" {
+		if c.Name == "r" && strings.Join(got, ",") != "vic,foo,bar" || c.Name == "#a" && strings.Join(got, ",") != "vic,a" {
 			t.Fatalf("%s nicks %v", c.Name, got)
 		}
 	}
@@ -258,22 +258,22 @@ func TestStampsToggle(t *testing.T) {
 func TestPicker(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil) // #a #b #c
-	next, _ := a.Update(RoomsMsg{"&handson", "&review"})
+	next, _ := a.Update(RoomsMsg{"handson", "review"})
 	a, _ = press(t, next.(App), "i")
 	a = typeText(t, a, "half typed")
 	a, _ = press(t, a, "ctrl+o")
-	a = typeText(t, a, "hon") // fuzzy: h..o..n in &handson only
+	a = typeText(t, a, "hon") // fuzzy: h..o..n in handson only
 	v := checkFrame(t, a, 80, 24)
-	// the picker is an overlay: &review still shows behind it, but is not a match
-	if !strings.Contains(ansi.Strip(v), "◆ &handson") || strings.Contains(ansi.Strip(v), "◆ &review") {
+	// the picker is an overlay: review still shows behind it, but is not a match
+	if !strings.Contains(ansi.Strip(v), "◆ handson") || strings.Contains(ansi.Strip(v), "◆ review") {
 		t.Fatalf("picker:\n%s", ansi.Strip(v))
 	}
 	a, _ = press(t, a, "enter")
-	if a.pick || cur(a) != "&handson" || a.in.Value() != "half typed" {
+	if a.pick || cur(a) != "handson" || a.in.Value() != "half typed" {
 		t.Fatalf("enter: pick %v cur %s input %q", a.pick, cur(a), a.in.Value())
 	}
 	a, _ = press(t, a, "ctrl+o", "x", "y", "z", "enter") // NEG: no match, enter stays
-	if a.pick || cur(a) != "&handson" {
+	if a.pick || cur(a) != "handson" {
 		t.Fatalf("no-match enter: %s", cur(a))
 	}
 	if _, ok := fuzzy("hn", "#handson"); !ok {
@@ -287,7 +287,7 @@ func TestPicker(t *testing.T) {
 func TestTabCompletion(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil) // #a #b #c
-	next, _ := a.Update(RoomsMsg{"&handson", "&hacks"})
+	next, _ := a.Update(RoomsMsg{"handson", "hacks"})
 	a, _ = press(t, next.(App), "i")
 	a = typeText(t, a, "/inv")
 	if s := a.suggest(); len(s) != 1 || !strings.Contains(ansi.Strip(s[0]), "/invite") {
@@ -302,11 +302,11 @@ func TestTabCompletion(t *testing.T) {
 	if a.in.Value() != "/invite b" { // NEG: "b" is a full nick, nothing longer
 		t.Fatalf("nick: %q", a.in.Value())
 	}
-	a = typeText(t, a, " &ha")
+	a = typeText(t, a, " ha")
 	a, _ = press(t, a, "tab")
 	first := a.in.Value()
 	a, _ = press(t, a, "tab")
-	if first == a.in.Value() || !strings.HasPrefix(first, "/invite b &ha") || !strings.HasPrefix(a.in.Value(), "/invite b &ha") { // cycles
+	if first == a.in.Value() || !strings.HasPrefix(first, "/invite b ha") || !strings.HasPrefix(a.in.Value(), "/invite b ha") { // cycles
 		t.Fatalf("channel cycle: %q then %q", first, a.in.Value())
 	}
 	checkFrame(t, a, 80, 24)
@@ -316,16 +316,16 @@ func TestMentionsInRooms(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
 	a.user = "vic"
-	next, _ := a.Update(RoomsMsg{"&r"})
+	next, _ := a.Update(RoomsMsg{"r"})
 	a = next.(App)
 	for _, l := range []model.Line{{Nick: "lib1", Text: "public note"}, {Nick: "lib2", Text: "@vic look"}, {Nick: "vic", Text: "mine"}, {Nick: "x", Text: "@vicky no"}} {
-		next, _ = a.Update(LineMsg{Ch: "&r", L: l})
+		next, _ = a.Update(LineMsg{Ch: "r", L: l})
 		a = next.(App)
 	}
 	a, _ = press(t, a, "m")
 	var got []string
 	for _, c := range a.m.Channels() {
-		if c.Name == "&r" {
+		if c.Name == "r" {
 			for _, l := range a.lines(c) {
 				got = append(got, l.Text)
 			}
@@ -424,11 +424,11 @@ func TestBusyMarks(t *testing.T) {
 	if !strings.Contains(ansi.Strip(a.screen()), "⌛a") {
 		t.Fatal("mark not on screen")
 	}
-	next, _ = a.Update(RoomsMsg{"&r"})
-	next, _ = next.(App).Update(MembersMsg{Ch: "&r", Nicks: []string{"lib1"}})
-	a = next.(App).focusName("&r")
-	a.m, _ = a.m.WithRoomMembers("&r", []model.Member{{Nick: "a"}, {Nick: "x@a"}, {Nick: "b"}}) // no PIDs, as at runtime
-	if got := strings.Join(a.paneNicks(), ","); got != "💬me,⌛a,⌛x@a,💤b" {                       // NEG: b (pid 2) is idle
+	next, _ = a.Update(RoomsMsg{"r"})
+	next, _ = next.(App).Update(MembersMsg{Ch: "r", Nicks: []string{"lib1"}})
+	a = next.(App).focusName("r")
+	a.m, _ = a.m.WithRoomMembers("r", []model.Member{{Nick: "a"}, {Nick: "x@a"}, {Nick: "b"}}) // no PIDs, as at runtime
+	if got := strings.Join(a.paneNicks(), ","); got != "💬me,⌛a,⌛x@a,💤b" {                      // NEG: b (pid 2) is idle
 		t.Fatalf("room %q", got)
 	}
 }
@@ -441,7 +441,7 @@ func TestAgentsInPane(t *testing.T) {
 	if got := strings.Join(a.paneNicks(), ","); got != "💤me,💤a,⌛driver-1,💤scribe-1" {
 		t.Fatalf("pane %q", got)
 	}
-	next, _ = a.Update(AgentsMsg{Ch: "&nope", Agents: []model.Agent{{Nick: "x"}}}) // NEG: unknown channel ignored
+	next, _ = a.Update(AgentsMsg{Ch: "nope", Agents: []model.Agent{{Nick: "x"}}}) // NEG: unknown channel ignored
 	a, _ = press(t, next.(App), "i")
 	a = typeText(t, a, "ask @dri")
 	a, _ = press(t, a, "tab")
@@ -595,18 +595,18 @@ func TestResumeLastChannel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := New(m, func(string, string) error { return nil }).WithResume("&r")
+	a := New(m, func(string, string) error { return nil }).WithResume("r")
 	next, _ := a.Update(SessionsMsg{{PID: 1, Name: "a"}})
 	if a = next.(App); a.Channel() != "#a" { // not there yet: first channel
 		t.Fatalf("before: %s", a.Channel())
 	}
-	next, _ = a.Update(RoomsMsg{"&r"})
-	if a = next.(App); a.Channel() != "&r" {
+	next, _ = a.Update(RoomsMsg{"r"})
+	if a = next.(App); a.Channel() != "r" {
 		t.Fatalf("resume: %s", a.Channel())
 	}
 	a, _ = press(t, a, "ctrl+n")
-	next, _ = a.Update(RoomsMsg{"&r"}) // NEG: only once
-	if a = next.(App); a.Channel() == "&r" {
+	next, _ = a.Update(RoomsMsg{"r"}) // NEG: only once
+	if a = next.(App); a.Channel() == "r" {
 		t.Fatal("resumed twice")
 	}
 }
@@ -733,9 +733,9 @@ func TestInvitePicker(t *testing.T) {
 		t.Fatalf("I in #: pick %v notes %v", a.pick, notes(a))
 	}
 	next, _ := a.Update(AgentsMsg{Ch: "#b", Agents: []model.Agent{{Nick: "driver-1"}}})
-	next, _ = next.(App).Update(RoomsMsg{"&r"})
-	a = next.(App).focusName("&r")
-	a.m, _ = a.m.WithRoomMembers("&r", []model.Member{{Nick: "a"}})
+	next, _ = next.(App).Update(RoomsMsg{"r"})
+	a = next.(App).focusName("r")
+	a.m, _ = a.m.WithRoomMembers("r", []model.Member{{Nick: "a"}})
 	a, _ = press(t, a, "I")
 	if got := strings.Join(a.pickSource(), ","); got != "b,driver-1@b,c" { // members (a) left out
 		t.Fatalf("invitable %q", got)
@@ -743,7 +743,7 @@ func TestInvitePicker(t *testing.T) {
 	a = typeText(t, a, "drv")
 	a, cmd := press(t, a, "enter")
 	cm, ok := cmd().(CmdMsg)
-	if !ok || a.pick || cm.Cmd.Name() != model.CmdInvite || strings.Join(cm.Cmd.Args(), " ") != "driver-1@b &r" {
+	if !ok || a.pick || cm.Cmd.Name() != model.CmdInvite || strings.Join(cm.Cmd.Args(), " ") != "driver-1@b r" {
 		t.Fatalf("invite cmd %#v", cmd())
 	}
 }
@@ -776,11 +776,11 @@ func TestCmdUsageHint(t *testing.T) {
 	a, _ := press(t, newApp(t, &log, nil), "i")
 	hint := func() string { _, _, h := a.inputLine(); return ansi.Strip(h) }
 	a = typeText(t, a, "/inv")
-	if hint() != "usage /invite <nick> &room" {
+	if hint() != "usage /invite <nick> room" {
 		t.Fatalf("inv %q", hint())
 	}
-	a = typeText(t, a, " dave &r") // the usage stays while typing the args
-	if hint() != "usage /invite <nick> &room" {
+	a = typeText(t, a, " dave r") // the usage stays while typing the args
+	if hint() != "usage /invite <nick> room" {
 		t.Fatalf("args %q", hint())
 	}
 	a, _ = press(t, newApp(t, &log, nil), "i")

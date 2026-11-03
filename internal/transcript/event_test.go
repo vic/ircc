@@ -48,7 +48,7 @@ func TestParseEventTypes(t *testing.T) {
 
 func TestParseEventHeld(t *testing.T) {
 	evs := load(t, "held.jsonl")
-	if !evs[0].Held || evs[0].HeldFrom != "uds:/tmp/x/ircc-%26review.sock" || evs[0].HeldPID != 548628 || evs[0].HeldPreview != "..." {
+	if !evs[0].Held || evs[0].HeldFrom != "uds:/tmp/x/ircc-review.sock" || evs[0].HeldPID != 548628 || evs[0].HeldPreview != "..." {
 		t.Errorf("warning line: %+v", evs[0])
 	}
 	if evs[1].Held || evs[1].HeldFrom != "" {

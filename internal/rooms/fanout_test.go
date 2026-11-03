@@ -13,11 +13,11 @@ type sent struct{ sock, frame string }
 
 func fixture(t *testing.T) (peer.Addr, Room, []Endpoint) {
 	t.Helper()
-	addr, err := peer.ParseAddr("uds:/run/x/ircc-%26r.sock")
+	addr, err := peer.ParseAddr("uds:/run/x/ircc-r.sock")
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := Room{Name: mustName(t, "&r"), Members: []Member{
+	r := Room{Name: mustName(t, "r"), Members: []Member{
 		{Session: "s1", Nick: "alice"}, {Session: "s2", Nick: "bob"}, {Session: "s3", Nick: "carol"},
 		{Session: "s2", Nick: "scribe-1@bob"}, {Session: "s1", Nick: "helper@alice"},
 	}}
@@ -65,7 +65,7 @@ func TestFanoutOneFramePerSocket(t *testing.T) {
 	if got := strings.Join(socks(out), ","); got != "/s/2.sock,/s/3.sock" { // bob+scribe share one; alice+helper are the writer's; ghost dropped
 		t.Fatalf("socks %s", got)
 	}
-	if !strings.Contains(out[0].frame, `from-mode="prompting"`) || !strings.Contains(out[0].frame, `from-name="&r"`) {
+	if !strings.Contains(out[0].frame, `from-mode="prompting"`) || !strings.Contains(out[0].frame, `from-name="r"`) {
 		t.Errorf("frame: %s", out[0].frame)
 	}
 	if !strings.HasPrefix(out[0].frame[strings.Index(out[0].frame, "\n")+1:], "mentioned: <alice> hi @bob") {
@@ -207,7 +207,7 @@ func TestWriterRejectsBadNick(t *testing.T) {
 // sorted, even without a mention (D:229); with the parent a member they do not.
 func TestFanoutTeammateRoutingParentNotMember(t *testing.T) {
 	addr, _, _ := fixture(t)
-	r := Room{Name: mustName(t, "&r"), Members: []Member{
+	r := Room{Name: mustName(t, "r"), Members: []Member{
 		{Session: "s1", Nick: "alice"}, {Session: "s2", Nick: "zed@bob"}, {Session: "s2", Nick: "amy@bob"},
 	}}
 	ends := []Endpoint{

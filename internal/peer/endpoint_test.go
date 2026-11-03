@@ -71,18 +71,18 @@ func TestOpenUser(t *testing.T) {
 func TestOpenRoomAndClose(t *testing.T) {
 	socks, sess := t.TempDir(), t.TempDir()
 	k := fakeKeeper(t)
-	ep, err := OpenRoom(socks, sess, "/proc", "&review", k, "dom")
+	ep, err := OpenRoom(socks, sess, "/proc", "review", k, "dom")
 	if err != nil {
 		t.Fatal(err)
 	}
-	sock := filepath.Join(socks, "ircc-%26review.sock")
+	sock := filepath.Join(socks, "ircc-review.sock")
 	// Claude decodes uds: once (measured 2026-10-22: from=...%26 hit ENOENT on ircc-&review.sock), so "%" goes out as "%25".
 	if ep.Addr.Path() != sock || ep.Addr.String() != "uds:"+strings.ReplaceAll(sock, "%", "%25") {
 		t.Fatalf("addr %s path %s", ep.Addr, ep.Addr.Path())
 	}
 	e := readEntry(t, sess, k.Pid)
 	want, _ := registry.ProcStart("/proc", k.Pid)
-	if e.Name != "&review" || e.PID != k.Pid || e.ProcStart != want || e.PIDDomain != "dom" ||
+	if e.Name != "review" || e.PID != k.Pid || e.ProcStart != want || e.PIDDomain != "dom" ||
 		e.Kind != registry.Bg || e.Status != registry.Idle || e.PeerProtocol != 1 || len(e.PeerFeatures) != 0 {
 		t.Fatalf("entry %+v", e)
 	}
@@ -105,10 +105,10 @@ func TestOpenRejects(t *testing.T) {
 	k := fakeKeeper(t)
 	for name, f := range map[string]func() error{
 		"empty user":      func() error { _, err := OpenUser(socks, sess, "/proc", "", ""); return err },
-		"user with &":     func() error { _, err := OpenUser(socks, sess, "/proc", "&x", ""); return err },
-		"room without &":  func() error { _, err := OpenRoom(socks, sess, "/proc", "x", k, ""); return err },
-		"room only &":     func() error { _, err := OpenRoom(socks, sess, "/proc", "&", k, ""); return err },
-		"room nil keeper": func() error { _, err := OpenRoom(socks, sess, "/proc", "&x", nil, ""); return err },
+		"user with #":     func() error { _, err := OpenUser(socks, sess, "/proc", "#x", ""); return err },
+		"room with #":     func() error { _, err := OpenRoom(socks, sess, "/proc", "#x", k, ""); return err },
+		"room only empty": func() error { _, err := OpenRoom(socks, sess, "/proc", "", k, ""); return err },
+		"room nil keeper": func() error { _, err := OpenRoom(socks, sess, "/proc", "x", nil, ""); return err },
 		"user slash":      func() error { _, err := OpenUser(socks, sess, "/proc", "a/b", ""); return err },
 		"dead procRoot":   func() error { _, err := OpenUser(socks, sess, t.TempDir(), "vic", ""); return err },
 	} {
@@ -130,7 +130,7 @@ const foreignEntry = `{"pid":%d,"kind":"bg","status":"idle","messagingSocketPath
 func TestCloseIdempotentAndSparesForeign(t *testing.T) {
 	socks, sess := t.TempDir(), t.TempDir()
 	k := fakeKeeper(t)
-	ep, err := OpenRoom(socks, sess, "/proc", "&review", k, "dom")
+	ep, err := OpenRoom(socks, sess, "/proc", "review", k, "dom")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestCloseIdempotentAndSparesForeign(t *testing.T) {
 func TestCloseSparesReplacedEntry(t *testing.T) {
 	socks, sess := t.TempDir(), t.TempDir()
 	k := fakeKeeper(t)
-	ep, err := OpenRoom(socks, sess, "/proc", "&review", k, "dom")
+	ep, err := OpenRoom(socks, sess, "/proc", "review", k, "dom")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestCloseSparesReplacedEntry(t *testing.T) {
 func TestOpenRoomFailureKillsKeeper(t *testing.T) {
 	socks, sess := t.TempDir(), t.TempDir()
 	k := fakeKeeper(t)
-	long := "&" + strings.Repeat("a", 200) // sun_path overflow
+	long := strings.Repeat("a", 200) // sun_path overflow
 	if _, err := OpenRoom(socks, sess, "/proc", long, k, ""); err == nil {
 		t.Fatal("want error")
 	}
@@ -183,7 +183,7 @@ func TestOpenRoomFailureKillsKeeper(t *testing.T) {
 		t.Fatalf("keeper survived failed open: %v", err)
 	}
 	k2 := fakeKeeper(t)
-	if _, err := OpenRoom(socks, sess, "/proc", "noamp", k2, ""); err == nil {
+	if _, err := OpenRoom(socks, sess, "/proc", "#noamp", k2, ""); err == nil {
 		t.Fatal("want error")
 	}
 	if err := syscall.Kill(k2.Pid, 0); !errors.Is(err, syscall.ESRCH) {

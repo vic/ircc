@@ -106,7 +106,7 @@ type cmdFix struct {
 
 func newCmdFix(t *testing.T) *cmdFix {
 	t.Helper()
-	addr, err := peer.ParseAddr("uds:/run/x/ircc-%26r.sock")
+	addr, err := peer.ParseAddr("uds:/run/x/ircc-r.sock")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,25 +164,25 @@ func (f *cmdFix) lastNote() string {
 
 func TestCmdJoinPartCloseCycle(t *testing.T) {
 	f := newCmdFix(t)
-	if err := f.do(t, "#a", "/join &r"); err != nil {
+	if err := f.do(t, "#a", "/join r"); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.lastRooms(); len(got) != 1 || got[0] != "&r" {
+	if got := f.lastRooms(); len(got) != 1 || got[0] != "r" {
 		t.Fatalf("rooms after join: %v", got)
 	}
-	if err := f.do(t, "&r", "/part"); err != nil {
+	if err := f.do(t, "r", "/part"); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.lastRooms(); len(got) != 0 || len(f.rt.rooms) != 1 {
 		t.Fatalf("part must hide only: shown %v, rt rooms %d", got, len(f.rt.rooms))
 	}
-	if err := f.do(t, "#a", "/join &r"); err != nil { // parted: show, do not reopen
+	if err := f.do(t, "#a", "/join r"); err != nil { // parted: show, do not reopen
 		t.Fatal(err)
 	}
 	if len(f.rt.opened) != 1 || len(f.lastRooms()) != 1 {
 		t.Fatalf("rejoin of a parted room: opened %v shown %v", f.rt.opened, f.lastRooms())
 	}
-	if err := f.do(t, "&r", "/close"); err != nil {
+	if err := f.do(t, "r", "/close"); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.rt.closed) != 1 || len(f.lastRooms()) != 0 {
@@ -192,19 +192,19 @@ func TestCmdJoinPartCloseCycle(t *testing.T) {
 
 func TestCmdNegatives(t *testing.T) {
 	for _, tc := range []struct{ name, ch, line, want string }{
-		{"join bad name", "#a", `/join &a"b`, "forbidden"},
-		{"join without &", "#a", "/join r", "&"},
-		{"close a # channel", "#a", "/close", "&"},
-		{"close unknown room", "&nope", "/close", "no room"},
-		{"part unknown room", "&nope", "/part", "no room"},
-		{"topic in # channel", "#a", "/topic hi", "&"},
-		{"invite into unknown room", "#a", "/invite dave &nope", "no room"},
-		{"kick in # channel", "#a", "/kick dave", "&"},
-		{"names in # channel", "#a", "/names", "&"},
+		{"join bad name", "#a", `/join a"b`, "forbidden"},
+		{"join a # name", "#a", "/join #r", "#"},
+		{"close a # channel", "#a", "/close", "#"},
+		{"close unknown room", "nope", "/close", "no room"},
+		{"part unknown room", "nope", "/part", "no room"},
+		{"topic in # channel", "#a", "/topic hi", "#"},
+		{"invite into unknown room", "#a", "/invite dave nope", "no room"},
+		{"kick in # channel", "#a", "/kick dave", "#"},
+		{"names in # channel", "#a", "/names", "#"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newCmdFix(t)
-			f.rt.setRoom(rooms.Room{Name: mustName(t, "&r")})
+			f.rt.setRoom(rooms.Room{Name: mustName(t, "r")})
 			err := f.do(t, tc.ch, tc.line)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("err %v, want containing %q", err, tc.want)
@@ -216,20 +216,20 @@ func TestCmdNegatives(t *testing.T) {
 func TestCmdJoinOpenFailureSurfaces(t *testing.T) {
 	f := newCmdFix(t)
 	f.rt.openErr = errors.New("boom")
-	if err := f.do(t, "#a", "/join &r"); err == nil || f.lastRooms() != nil {
+	if err := f.do(t, "#a", "/join r"); err == nil || f.lastRooms() != nil {
 		t.Fatalf("err %v rooms %v", err, f.lastRooms())
 	}
 }
 
 func TestCmdTopicSaves(t *testing.T) {
 	f := newCmdFix(t)
-	if err := f.do(t, "#a", "/join &r"); err != nil {
+	if err := f.do(t, "#a", "/join r"); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.do(t, "&r", "/topic ship the thing"); err != nil {
+	if err := f.do(t, "r", "/topic ship the thing"); err != nil {
 		t.Fatal(err)
 	}
-	r, _ := f.rt.room(mustName(t, "&r"))
+	r, _ := f.rt.room(mustName(t, "r"))
 	if r.Topic != "ship the thing" {
 		t.Fatalf("topic %q", r.Topic)
 	}
@@ -241,36 +241,36 @@ func TestCmdTopicSaves(t *testing.T) {
 
 func TestCmdInviteKickNames(t *testing.T) {
 	f := newCmdFix(t)
-	if err := f.do(t, "#a", "/join &r"); err != nil {
+	if err := f.do(t, "#a", "/join r"); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.do(t, "#a", "/invite dave &r"); err != nil {
+	if err := f.do(t, "#a", "/invite dave r"); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.frames) != 1 || f.frames[0] != "/s/7.sock" {
 		t.Fatalf("want exactly one invite frame to dave, got %v", f.frames)
 	}
-	r, _ := f.rt.room(mustName(t, "&r"))
+	r, _ := f.rt.room(mustName(t, "r"))
 	if len(r.Members) != 1 || r.Members[0].Nick != "dave" {
 		t.Fatalf("members %+v", r.Members)
 	}
-	if m, ok := f.lastMembers(); !ok || m.Ch != "&r" || len(m.Nicks) != 1 || m.Nicks[0] != "dave" {
+	if m, ok := f.lastMembers(); !ok || m.Ch != "r" || len(m.Nicks) != 1 || m.Nicks[0] != "dave" {
 		t.Fatalf("ui members after invite: %+v", m)
 	}
-	if err := f.do(t, "&r", "/names"); err != nil || !strings.Contains(f.lastNote(), "dave") {
+	if err := f.do(t, "r", "/names"); err != nil || !strings.Contains(f.lastNote(), "dave") {
 		t.Fatalf("names: %v %q", err, f.lastNote())
 	}
 	f.c.whois = func(nick string) (string, error) { return nick + ": model m", nil }
-	if err := f.do(t, "&r", "/whois dave"); err != nil || !strings.Contains(f.lastNote(), "dave: model m") {
+	if err := f.do(t, "r", "/whois dave"); err != nil || !strings.Contains(f.lastNote(), "dave: model m") {
 		t.Fatalf("whois: %v %q", err, f.lastNote())
 	}
-	if err := f.do(t, "&r", "/kick nobody"); err == nil {
+	if err := f.do(t, "r", "/kick nobody"); err == nil {
 		t.Fatal("kick of a non-member: want error")
 	}
-	if err := f.do(t, "&r", "/kick dave"); err != nil {
+	if err := f.do(t, "r", "/kick dave"); err != nil {
 		t.Fatal(err)
 	}
-	r, _ = f.rt.room(mustName(t, "&r"))
+	r, _ = f.rt.room(mustName(t, "r"))
 	saved, _ := rooms.Load(f.c.dir)
 	if len(r.Members) != 0 || len(saved) != 1 || len(saved[0].Members) != 0 {
 		t.Fatalf("kick: rt %+v saved %+v", r.Members, saved)
@@ -280,7 +280,7 @@ func TestCmdInviteKickNames(t *testing.T) {
 	}
 	// NEG: unknown invitee sends nothing.
 	f.frames = nil
-	if err := f.do(t, "#a", "/invite ghost &r"); err == nil || len(f.frames) != 0 {
+	if err := f.do(t, "#a", "/invite ghost r"); err == nil || len(f.frames) != 0 {
 		t.Fatalf("unknown nick: err %v frames %v", err, f.frames)
 	}
 }
@@ -310,7 +310,7 @@ func TestCmdTeaCmdTurnsErrorsIntoNotes(t *testing.T) {
 	if !ok || !n.L.Dim || n.L.Text == "" {
 		t.Fatalf("want dim NoteMsg, got %#v", msg)
 	}
-	ok2, _ := model.ParseCmd("/join &r")
+	ok2, _ := model.ParseCmd("/join r")
 	if m := f.c.cmd("#a", ok2)(); m != nil {
 		t.Fatalf("success must return no message, got %#v", m)
 	}

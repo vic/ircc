@@ -77,7 +77,7 @@ func (c *cmds) do(ch string, cm model.Cmd) error {
 		return c.update(ch, func(r *rooms.Room) error { return kick(r, args[0]) })
 	case model.CmdMsg:
 		t := args[0]
-		if !strings.HasPrefix(t, "#") && !strings.HasPrefix(t, "&") {
+		if !strings.HasPrefix(t, "#") {
 			t = "#" + t
 		}
 		return c.sendCh(t, args[1])

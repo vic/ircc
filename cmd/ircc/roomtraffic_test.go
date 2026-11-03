@@ -31,7 +31,7 @@ type trFix struct {
 	sent []sentFrame
 }
 
-// newTR opens room &r with members alice (pid 101, default), bob (pid 102, default),
+// newTR opens room r with members alice (pid 101, default), bob (pid 102, default),
 // and teammate scout@alice (alice's session). pid 103 is live but not a member.
 func newTR(t *testing.T) *trFix {
 	t.Helper()
@@ -57,7 +57,7 @@ func newTR(t *testing.T) *trFix {
 		x.r.names[pid] = "#" + n
 		x.r.tails[pid] = &tail{mode: "default"}
 	}
-	x.name = mustName(t, "&r")
+	x.name = mustName(t, "r")
 	if err := x.f.rt.open(x.name, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func (x *trFix) frameFrom(t *testing.T, body string) []byte {
 
 func TestRoomSayFansOutToMembersAndEchoes(t *testing.T) {
 	x := newTR(t)
-	if err := x.r.say("&r", "hello all"); err != nil {
+	if err := x.r.say("r", "hello all"); err != nil {
 		t.Fatal(err)
 	}
 	// alice and her teammate share one socket: exactly one frame per socket (D:246)
@@ -127,14 +127,14 @@ func TestRoomSayFansOutToMembersAndEchoes(t *testing.T) {
 			t.Errorf("frame %+v", s)
 		}
 	}
-	if got := x.lines("&r"); len(got) != 1 || got[0] != "vic|hello all" {
+	if got := x.lines("r"); len(got) != 1 || got[0] != "vic|hello all" {
 		t.Fatalf("room lines %v", got)
 	}
 }
 
 func TestRoomSayErrors(t *testing.T) {
 	x := newTR(t)
-	if err := x.r.say("&nope", "x"); err == nil {
+	if err := x.r.say("nope", "x"); err == nil {
 		t.Fatal("say to an unopened room succeeded")
 	}
 	if err := x.r.say("#alice", "x"); err == nil {
@@ -142,7 +142,7 @@ func TestRoomSayErrors(t *testing.T) {
 	}
 	// NEG: a member of unknown mode is skipped (fail closed), the rest still get it, and the user is told
 	x.r.tails[102].mode = ""
-	if err := x.r.say("&r", "hi"); err != nil {
+	if err := x.r.say("r", "hi"); err != nil {
 		t.Fatal(err)
 	}
 	if got := x.socks(); len(got) != 1 || got[0] != "/s/alice.sock" {
@@ -163,10 +163,10 @@ func TestRoomFrameFromMemberFansToOthers(t *testing.T) {
 	if !strings.Contains(x.sent[0].in.Body, "<bob> from bob") {
 		t.Fatalf("body %q", x.sent[0].in.Body)
 	}
-	if got := x.lines("&r"); len(got) != 1 || got[0] != "bob|from bob" {
+	if got := x.lines("r"); len(got) != 1 || got[0] != "bob|from bob" {
 		t.Fatalf("room lines %v", got)
 	}
-	if got := x.lines("#bob"); len(got) != 1 || !strings.Contains(got[0], "[&r]") || !strings.Contains(got[0], "from bob") {
+	if got := x.lines("#bob"); len(got) != 1 || !strings.Contains(got[0], "[r]") || !strings.Contains(got[0], "from bob") {
 		t.Fatalf("dim echo in #bob: %v", got)
 	}
 	x.mu.Lock()
@@ -181,7 +181,7 @@ func TestRoomFrameFromMemberFansToOthers(t *testing.T) {
 func TestRoomFrameTeammateNick(t *testing.T) {
 	x := newTR(t)
 	x.r.onRoomFrame(x.name, 101, x.frameFrom(t, `<agent-message from="scout"> found it`))
-	if got := x.lines("&r"); len(got) != 1 || !strings.HasPrefix(got[0], "scout@alice|") {
+	if got := x.lines("r"); len(got) != 1 || !strings.HasPrefix(got[0], "scout@alice|") {
 		t.Fatalf("room lines %v", got)
 	}
 	// the writer shares alice's socket: only bob gets a copy
@@ -196,13 +196,13 @@ func TestRoomFrameNonMemberShownNotFanned(t *testing.T) {
 	if len(x.socks()) != 0 {
 		t.Fatalf("non-member fanned: %v", x.socks())
 	}
-	if got := x.lines("&r"); len(got) != 1 || !strings.Contains(got[0], "[non-member]") {
+	if got := x.lines("r"); len(got) != 1 || !strings.Contains(got[0], "[non-member]") {
 		t.Fatalf("room lines %v", got)
 	}
 	// NEG: an unknown pid and a malformed frame: nothing sent, no panic
 	x.r.onRoomFrame(x.name, 999, x.frameFrom(t, "who"))
 	x.r.onRoomFrame(x.name, 102, []byte(`{"not":"a frame"}`))
-	x.r.onRoomFrame(mustName(t, "&gone"), 102, x.frameFrom(t, "x"))
+	x.r.onRoomFrame(mustName(t, "gone"), 102, x.frameFrom(t, "x"))
 	if len(x.socks()) != 0 {
 		t.Fatalf("sent %v", x.socks())
 	}
@@ -225,7 +225,7 @@ func TestRoomHeldEventMarksLine(t *testing.T) {
 	ep, _ := x.f.rt.endpoint(x.name)
 	held := transcript.Event{Held: true, HeldFrom: ep.Addr.String(), HeldPID: os.Getpid(), HeldPreview: "<vic> hello"}
 	x.r.onEvent(102, held)
-	if got := x.lines("&r"); len(got) != 1 || !strings.Contains(got[0], "held at bob") || !strings.Contains(got[0], "<vic> hello") {
+	if got := x.lines("r"); len(got) != 1 || !strings.Contains(got[0], "held at bob") || !strings.Contains(got[0], "<vic> hello") {
 		t.Fatalf("room lines %v", got)
 	}
 	// NEG: another address, another pid, and a non-held event mark nothing
@@ -237,7 +237,7 @@ func TestRoomHeldEventMarksLine(t *testing.T) {
 	x.r.onEvent(102, other)
 	x.r.onEvent(102, transcript.Event{})
 	x.r.onEvent(999, held)
-	if got := x.lines("&r"); len(got) != 1 {
+	if got := x.lines("r"); len(got) != 1 {
 		t.Fatalf("extra marks: %v", got)
 	}
 }

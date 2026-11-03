@@ -18,7 +18,7 @@ func TestInvite(t *testing.T) {
 	if len(out) != 1 || out[0].sock != "/s/7.sock" {
 		t.Fatalf("want exactly one frame to dave, got %+v", out)
 	}
-	for _, want := range []string{"You are invited to &r.", "Topic: plan", "alice, bob, carol", "Reply to `from` to talk in the room", "@nick"} {
+	for _, want := range []string{"You are invited to r.", "Topic: plan", "alice, bob, carol", "Reply to `from` to talk in the room", "@nick"} {
 		if !strings.Contains(out[0].frame, want) {
 			t.Errorf("invite text lacks %q: %s", want, out[0].frame)
 		}

@@ -388,7 +388,7 @@ func (a App) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a.yank()
 	case PickInvite:
 		if a.m.Current().Kind != model.RoomChan {
-			return a.toast("invite works in a & room: /join &name first", true), nil
+			return a.toast("invite works in a & room: /join name first", true), nil
 		}
 		return a.openPick(pickInvite), nil
 	case PickSpeaker:
@@ -655,7 +655,7 @@ func (a App) sent(r SendResultMsg) App {
 	if r.Err != nil {
 		return a.note("send failed: " + r.Err.Error())
 	}
-	if strings.HasPrefix(r.Ch, "&") {
+	if !strings.HasPrefix(r.Ch, "#") {
 		return a // room lines are echoed by the room runtime, which also logs them
 	}
 	if m, err := a.m.AddLine(r.Ch, model.Line{At: a.now(), Nick: a.user, Text: r.Text}); err == nil {
@@ -1018,9 +1018,9 @@ func (a App) suggest() []string {
 	return []string{ansi.Truncate(dimmed.Render("tab ")+strings.Join(parts, "  "), max(a.w-6, 1), "…")} // fits in the box
 }
 
-// chanKind is the kind a channel name has: & rooms, else # sessions.
+// chanKind is the kind a channel name has: # sessions, else rooms.
 func chanKind(name string) model.ChanKind {
-	if strings.HasPrefix(name, "&") {
+	if !strings.HasPrefix(name, "#") {
 		return model.RoomChan
 	}
 	return model.SessionChan
