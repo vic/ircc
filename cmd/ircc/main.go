@@ -6,16 +6,23 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
-const usage = `usage: ircc [-n nick] [-h] [keep | mcp]
+const usage = `usage: ircc [-n nick] [-room &name] [-invite nick,...] [-h] [keep]
 
-  mcp              MCP stdio bridge to the running TUI (Claude Code: command ircc, args [mcp])
-                   -n is the owner nick for the MCP instructions when no TUI runs
-
-  -n, --nick nick  user nick (default $USER; a taken name gets a suffix)
-  -h, --help       show this help
+  -n, --nick nick       user nick (default $USER; a taken name gets a suffix)
+  -room &name           open this room at start and keep it open
+  -invite nick,...      invite these sessions to -room as soon as each is awake
+  -h, --help            show this help
 `
+
+// options are the flags of the TUI run.
+type options struct {
+	nick   string
+	room   string
+	invite []string
+}
 
 func main() { os.Exit(run(os.Args[1:], nil)) }
 
@@ -23,16 +30,15 @@ func run(args []string, ready func()) int {
 	if len(args) > 0 && args[0] == "keep" {
 		return runKeep(ready)
 	}
-	isMCP := len(args) > 0 && args[0] == "mcp"
-	if isMCP {
-		args = args[1:]
-	}
-	var nick string
+	var o options
+	var invite string
 	fs := flag.NewFlagSet("ircc", flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // flag's own error and usage text: we print ours
 	fs.Usage = func() {}
-	fs.StringVar(&nick, "n", "", "user nick (default $USER)")
-	fs.StringVar(&nick, "nick", "", "user nick (default $USER)")
+	fs.StringVar(&o.nick, "n", "", "user nick (default $USER)")
+	fs.StringVar(&o.nick, "nick", "", "user nick (default $USER)")
+	fs.StringVar(&o.room, "room", "", "room to open at start")
+	fs.StringVar(&invite, "invite", "", "comma-separated nicks to invite to -room")
 	help := fs.Bool("h", false, "show this help")
 	fs.BoolVar(help, "help", false, "show this help")
 	if err := fs.Parse(args); errors.Is(err, flag.ErrHelp) || *help {
@@ -45,8 +51,13 @@ func run(args []string, ready func()) int {
 		os.Stderr.WriteString(usage)
 		return 2
 	}
-	if isMCP {
-		return runMCP(ownerNick(nick))
+	if invite != "" && o.room == "" {
+		fmt.Fprintln(os.Stderr, "ircc: -invite needs -room")
+		return 2
 	}
-	return runTUI(nick)
+	o.invite = strings.Split(invite, ",")
+	if invite == "" {
+		o.invite = nil
+	}
+	return runTUI(o)
 }

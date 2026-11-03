@@ -79,7 +79,11 @@ type runner struct {
 	epWarned bool         // endpoint-open failure already shown
 	autoNick bool         // no -n: openUser may suffix r.user on a clash
 
-	rt *roomRT // room runtime (T40); nil until the TUI wires it
+	rt         *roomRT  // room runtime (T40); nil until the TUI wires it
+	cs         *cmds    // join and invite for -room; nil until the TUI wires it
+	room       string   // -room: opened once, at the first snapshot
+	want       []string // -invite: nicks invited to room as each is awake
+	roomOpened sync.Once
 
 	epMu   sync.Mutex
 	ep     *peer.Endpoint     // user endpoint, opened on first send
@@ -150,9 +154,49 @@ func (r *runner) onSnapshot(s registry.Snapshot) {
 		r.attach(pid, e)
 	}
 	r.emit(r.info())
+	r.autoInvite()
 	for _, err := range s.Errs {
 		r.warn("! " + err.Error())
 	}
+}
+
+// autoInvite opens -room once, then invites each -invite nick as soon as its session is
+// awake: invitable lists only live sessions with a known permission mode.
+func (r *runner) autoInvite() {
+	if r.room == "" {
+		return
+	}
+	r.roomOpened.Do(func() {
+		if err := r.cs.join(r.room); err != nil {
+			r.warn("! " + err.Error())
+		}
+	})
+	n, err := rooms.ParseName(r.room)
+	if err != nil {
+		return
+	}
+	rm, ok := r.rt.room(n)
+	if !ok {
+		return
+	}
+	for _, nick := range pendingInvites(r.want, r.invitable(rm), rm.Members) {
+		if err := r.cs.invite(nick, r.room); err != nil {
+			r.warn("! " + err.Error())
+		}
+	}
+}
+
+// pendingInvites lists the wanted nicks that are awake (in ends) and not yet members.
+func pendingInvites(want []string, ends []rooms.Endpoint, members []rooms.Member) []string {
+	var out []string
+	for _, e := range ends {
+		nick := e.Member.Nick
+		if slices.Contains(want, nick) && !slices.Contains(out, nick) &&
+			!slices.ContainsFunc(members, func(m rooms.Member) bool { return m.Nick == nick }) {
+			out = append(out, nick)
+		}
+	}
+	return out
 }
 
 // ensureEndpoint opens the user endpoint at the first snapshot with a live entry, in
@@ -201,7 +245,7 @@ func (r *runner) info() ui.InfoMsg {
 
 // seed reads the last seedBytes of the transcript at path. It returns the last
 // permissionMode ("" if none) and the offset of the first whole line in that span:
-// the tail starts there, so a channel shows recent history (vic 2026-10-22).
+// the tail starts there, so a channel shows recent history.
 // On a read error the tail starts at size: no history, mode unknown.
 func seed(path string, size int64) (mode string, start int64) {
 	f, err := os.Open(path)
@@ -543,15 +587,21 @@ func ownerNick(nick string) string {
 }
 
 // runTUI wires registry watch, transcript polling and the user endpoint into the App.
-// nick "" means $USER, and a clash is resolved by openUser.
-func runTUI(nick string, opts ...tea.ProgramOption) int {
+// o.nick "" means $USER, and a clash is resolved by openUser.
+func runTUI(o options, opts ...tea.ProgramOption) int {
+	if o.room != "" {
+		if _, err := rooms.ParseName(o.room); err != nil {
+			fmt.Fprintln(os.Stderr, "ircc: -room:", err)
+			return 2
+		}
+	}
 	claude, err := claudeDir()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ircc:", err)
 		return 1
 	}
-	// GAP-6 (Vic gate): the user endpoint is named $USER; a session of the same name clashes.
-	user := ownerNick(nick)
+	// the user endpoint is named $USER; a session of the same name clashes.
+	user := ownerNick(o.nick)
 	const procRoot = "/proc"
 	if err := registry.RemoveStale(filepath.Join(claude, "sessions"), procRoot); err != nil {
 		fmt.Fprintln(os.Stderr, "ircc: remove stale:", err)
@@ -563,7 +613,7 @@ func runTUI(nick string, opts ...tea.ProgramOption) int {
 	}
 	var p *tea.Program
 	r := newRunner(claude, procRoot, user, func(msg tea.Msg) { p.Send(msg) })
-	r.autoNick = nick == ""
+	r.autoNick = o.nick == ""
 	defer r.close()
 	dir, err := roomsDir()
 	if err != nil {
@@ -578,8 +628,8 @@ func runTUI(nick string, opts ...tea.ProgramOption) int {
 	r.rt = newRoomRT(dir, "", r.sessDir(), procRoot, self) // socks dir set by the first live session
 	r.rt.onOpen = r.serveRoom
 	defer r.rt.shutdown()
-	cs := &cmds{rt: r.rt, dir: dir, emit: r.emit, send: r.sendTo, inviteFn: rooms.Invite, ends: r.invitable, sendCh: r.sendAs, whois: r.whois,
-		user: func() string { return r.user }}
+	cs := &cmds{rt: r.rt, dir: dir, emit: r.emit, send: r.sendTo, inviteFn: rooms.Invite, ends: r.invitable, sendCh: r.send, whois: r.whois}
+	r.cs, r.room, r.want = cs, o.room, o.invite
 	last := filepath.Join(filepath.Dir(dir), "last") // the channel ircc was on when it last quit
 	prev, _ := os.ReadFile(last)                     // none yet: start on the first channel
 	app := ui.New(m, r.send).WithUser(user).WithCmd(cs.cmd).WithLiteral(r.sendLiteral).WithResume(strings.TrimSpace(string(prev)))
@@ -587,9 +637,6 @@ func runTUI(nick string, opts ...tea.ProgramOption) int {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	mcpDone := make(chan struct{})
-	go func() { defer close(mcpDone); serveMCP(ctx, r, cs, p) }()
-	defer func() { cancel(); <-mcpDone }() // the MCP socket is gone before ircc exits
 	watchErr := make(chan error, 1)
 	go func() {
 		err := watchLoop(ctx, r, func(c context.Context) (<-chan registry.Snapshot, error) {

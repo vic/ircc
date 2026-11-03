@@ -212,7 +212,7 @@ func toolArg(in map[string]json.RawMessage) string {
 	return ""
 }
 
-// Notice is an event ircc shows as a toast (vic 2026-10-23). Measured 2026-10-23:
+// Notice is an event ircc shows as a toast. Measured 2026-10-23:
 // system compact_boundary {compactMetadata.trigger, .preTokens} (context full);
 // attachments goal_status {met, condition} and hook_blocking_error {hookEvent,
 // blockingError.blockingError}; user text "<Event>[:<Tool>] hook error: ...".

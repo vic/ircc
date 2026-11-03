@@ -30,7 +30,7 @@ type Endpoint struct {
 
 // OpenUser opens the user endpoint under the given name; the entry takes ircc's pid.
 // The name is a parameter on purpose: the clash with a session of the same name is
-// an open Vic gate (GAP-6).
+// an open gate (GAP-6).
 func OpenUser(socksDir, sessDir, procRoot, user, pidDomain string) (*Endpoint, error) {
 	if user == "" || strings.HasPrefix(user, roomPrefix) {
 		return nil, fmt.Errorf("peer: user endpoint name %q: want non-empty without %q", user, roomPrefix)

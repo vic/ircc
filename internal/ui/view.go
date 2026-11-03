@@ -223,7 +223,7 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 			chans = append(chans, byName[n])
 		}
 		mid := w - chanW - nickW - 4 // four border columns
-		// The focused pane's borders are drawn in focusBorder (vic 2026-10-23). Pane k
+		// The focused pane's borders are drawn in focusBorder. Pane k
 		// (0 channels, 1 chat, 2 nicks) owns vertical borders k and k+1 and segment k.
 		pane := 1
 		switch p.focus {
@@ -279,7 +279,7 @@ func render(m model.Model, ml model.Modeline, input string, w, h, off, hit int, 
 		lst = alert
 	}
 	left += lst.Render(ml.Left)
-	if hint != "" { // keys for this mode, between the status and the clock (vic 2026-10-22)
+	if hint != "" { // keys for this mode, between the status and the clock
 		left += "   " + hint
 	}
 	right := dimmed.Render(ml.Right + " ")
@@ -564,7 +564,7 @@ func (p sidePanes) title(name string, f paneFocus) string {
 const toastCards = 3
 
 // overlayToasts draws the newest toasts as cards at the right edge of screen, the
-// lowest card's bottom on row bottom (vic 2026-10-23, after jjui flash messages).
+// lowest card's bottom on row bottom.
 func overlayToasts(screen string, w, bottom int, ts []toast) string {
 	if len(ts) == 0 || w < minWide {
 		return screen
@@ -593,7 +593,7 @@ func overlayToasts(screen string, w, bottom int, ts []toast) string {
 
 // overlaySuggest draws the completion row in a small box over the screen, its
 // bottom border on row bottom, from column 1: it floats above the prompt
-// (vic 2026-10-23), so no layout row moves.
+// , so no layout row moves.
 func overlaySuggest(screen string, w, bottom int, sugg []string) string {
 	if len(sugg) == 0 || bottom < 2 {
 		return screen

@@ -1,7 +1,7 @@
 package model
 
 // WithRooms makes the room (&) channels exactly names. Kept channels keep their
-// place (most recent first, vic 2026-10-22, was D:327 # before &), new rooms go last.
+// place (most recent first, was D:327 # before &), new rooms go last.
 // Rooms that stay keep scrollback and members; duplicates collapse; focus stays
 // on the same channel by name, else falls back to the first channel.
 func (m Model) WithRooms(names []string) Model {

@@ -7,7 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Simple markdown coloring (vic 2026-10-22). Markers stay visible but dimmed, so
+// Simple markdown coloring. Markers stay visible but dimmed, so
 // widths never change: wrapping and scroll counts stay the plain-text ones.
 var (
 	codeSt   = fg("6")
