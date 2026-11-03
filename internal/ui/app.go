@@ -72,19 +72,6 @@ type SendResultMsg struct {
 	Err      error
 }
 
-// QueryMsg asks the App for a Snapshot (MCP reads, I4). Reply must have room for
-// one value: the App never blocks on it.
-type QueryMsg struct{ Reply chan<- Snapshot }
-
-// Snapshot is what the TUI user sees: channels with scrollback and unread, the
-// modeline data, the user's nick and whether the user is typing.
-type Snapshot struct {
-	Model  model.Model
-	Info   map[int]model.SessionInfo
-	User   string
-	Typing bool
-}
-
 // CmdMsg carries a parsed command (other than /quit) to the program owner,
 // which performs the side effect (join, kick, ...).
 type CmdMsg struct{ Cmd model.Cmd }
@@ -193,11 +180,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a = a.toast(msg.L.Text, false) // runtime notes are notifications, not scrollback
 	case NickMsg:
 		a.user = msg.Nick
-	case QueryMsg:
-		select { // Model is copy-on-write: the copy is safe to read elsewhere
-		case msg.Reply <- Snapshot{Model: a.m, Info: maps.Clone(a.info), User: a.user, Typing: a.mode == Insert && a.in.Value() != ""}:
-		default:
-		}
 	case ToastMsg:
 		a = a.toast(msg.Text, msg.Err)
 	case tickMsg:
@@ -535,7 +517,7 @@ func (a App) runCmd(line string) (tea.Model, tea.Cmd) {
 	if err != nil {
 		return a.note(err.Error()), nil
 	}
-	if c.Name() == model.CmdHelp { // the same screen as ? (vic 2026-10-23)
+	if c.Name() == model.CmdHelp { // the same screen as ?
 		a.help = true
 		return a, nil
 	}
@@ -548,8 +530,8 @@ func (a App) runCmd(line string) (tea.Model, tea.Cmd) {
 // note adds a dim local line to the current channel.
 func (a App) note(text string) App { return a.toast(text, true) }
 
-// toast shows text in a card at the bottom right for toastFor (vic 2026-10-23,
-// like jjui flash messages); err cards are red, others green.
+// toast shows text in a card at the bottom right for toastFor,
+// like jjui flash messages; err cards are red, others green.
 func (a App) toast(text string, err bool) App {
 	a.toasts = append(slices.Clone(a.toasts), toast{text: text, err: err, at: a.now()})
 	return a
@@ -570,7 +552,7 @@ func (a App) inputLine() (label, input, hint string) {
 		if a.quote != nil { // RE: while replying; the quote is dropped once the input is empty
 			prompt = "RE: "
 		}
-		if u := a.cmdUsage(); u != "" { // typing a /command: its usage is the hint (vic 2026-10-23)
+		if u := a.cmdUsage(); u != "" { // typing a /command: its usage is the hint
 			return "INSERT", prompt + withCursor(a.in.Value(), inputPos(a.in)), u
 		}
 		hint := keyHint("enter", "send", "/", "command", "@", "mention", "tab", "complete", "↑↓", "line", "C-t", "files", "C-f", "file block", "C-o", "pick", "esc", "normal")
@@ -587,7 +569,7 @@ func (a App) inputLine() (label, input, hint string) {
 }
 
 // footer is the last row outside INSERT: more keys and the toggle states, since
-// there is no input to show (vic 2026-10-23).
+// there is no input to show.
 func (a App) footer() string {
 	// states first: on a narrow screen the keys fall off the end (they are in ? help)
 	return fit(cell, " "+keyHint("t", "tools:"+onOff(a.tools), "m", "mentions:"+onOff(a.mentions), "s", "time:"+onOff(a.stamps),
@@ -802,8 +784,8 @@ type pickKind uint8
 const (
 	pickChans     pickKind = iota // ctrl+o: channels and @nicks
 	pickLines                     // /: the current channel's shown lines; enter jumps
-	pickSpeakers                  // S: who spoke here; enter shows only that nick (vic 2026-10-23)
-	pickInvite                    // I: who can be invited to this room; enter invites (vic 2026-10-23)
+	pickSpeakers                  // S: who spoke here; enter shows only that nick
+	pickInvite                    // I: who can be invited to this room; enter invites
 	pickFiles                     // ctrl+t: the session's files; enter inserts the path
 	pickFileBlock                 // ctrl+f: the session's files; enter inserts the file as a fenced block
 	pickGrep                      // ctrl+g: filter the shown lines to fuzzy matches, live
@@ -1059,7 +1041,7 @@ func (a App) lastMention() string {
 	return ""
 }
 
-// Status marks before each nick in the nick pane (vic 2026-10-23). All are wide
+// Status marks before each nick in the nick pane. All are wide
 // (2 cells) emoji with no variation selector, so widths stay exact.
 const (
 	busyMark   = "⌛" // working: registry busy, or a subagent mid-turn
@@ -1137,7 +1119,7 @@ func (a App) turn(fwd bool) App {
 	return a
 }
 
-// paneFocus is the pane that takes NORMAL keys; tab cycles it (vic 2026-10-22).
+// paneFocus is the pane that takes NORMAL keys; tab cycles it.
 type paneFocus uint8
 
 const (
@@ -1168,7 +1150,7 @@ func (a App) paneItems(f paneFocus) (show, names []string) {
 }
 
 // paneKey is paneStep plus the channel preview: moving over the channel pane shows
-// that channel in the chat and nick panes (vic 2026-10-23).
+// that channel in the chat and nick panes.
 func (a App) paneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	next, cmd := a.paneStep(msg)
 	b := next.(App)
@@ -1217,7 +1199,7 @@ func (a App) paneStep(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // click handles a left click in wide mode: a channel row switches to that channel,
-// a nick row starts an insert line mentioning it (vic 2026-10-23). Row 0 is the pane title.
+// a nick row starts an insert line mentioning it. Row 0 is the pane title.
 func (a App) click(m tea.Mouse) (tea.Model, tea.Cmd) {
 	if !wide(a.w, a.h) || m.Y < 1 {
 		return a, nil
@@ -1269,7 +1251,7 @@ func (a App) openTarget(path, cmd string) (App, tea.Cmd) {
 }
 
 // runShell runs cmd with sh -c, suspending the app. It waits for Enter before the
-// app comes back, so the output stays readable (vic 2026-10-23, like jjui $).
+// app comes back, so the output stays readable.
 func (a App) runShell(cmd string) (App, tea.Cmd) {
 	if strings.TrimSpace(cmd) == "" {
 		return a, nil
@@ -1315,7 +1297,7 @@ func (a App) sides() sidePanes {
 }
 
 // lineStep moves the cursor (the reversed line) one line down (to newer) or up,
-// and scrolls just enough to keep it in view (vic 2026-10-23). Up with no cursor
+// and scrolls just enough to keep it in view. Up with no cursor
 // starts at the newest line; down past the newest clears it.
 func (a App) lineStep(down bool) App {
 	ls := a.lines(a.m.Current())
@@ -1344,7 +1326,7 @@ func (a App) lineStep(down bool) App {
 }
 
 // withCursor draws the input cursor at rune position pos: that rune reversed, or a
-// reversed space at the end (vic 2026-10-23).
+// reversed space at the end.
 func withCursor(s string, pos int) string {
 	rs := []rune(s)
 	pos = min(max(pos, 0), len(rs))
@@ -1371,7 +1353,7 @@ var cursorOn, cursorOff = func() (string, string) {
 }()
 
 // WithResume makes ch current as soon as it shows up in the channel list, once:
-// ircc starts on the channel it was on when it last quit (vic 2026-10-23).
+// ircc starts on the channel it was on when it last quit.
 func (a App) WithResume(ch string) App {
 	a.resumeTo = ch
 	return a
@@ -1388,7 +1370,7 @@ func (a App) resume() App {
 // Channel is the current channel's name ("" when there is none).
 func (a App) Channel() string { return a.m.Current().Name }
 
-// yank copies the cursor line's text to the system clipboard (OSC 52) (vic 2026-10-23).
+// yank copies the cursor line's text to the system clipboard (OSC 52).
 func (a App) yank() (tea.Model, tea.Cmd) {
 	ls := a.lines(a.m.Current())
 	if a.hit < 0 || a.hit >= len(ls) {

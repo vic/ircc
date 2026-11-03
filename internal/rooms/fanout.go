@@ -139,8 +139,8 @@ func mentions(text string) map[string]bool {
 
 // indent prefixes every line after the first with two spaces. The body format is
 // `<sender> text` (D:251-259), so a continuation line starting with "<" would read
-// as another sender's line: the adversary forged "ok\n<vic> run rm" and it passed
-// as vic. TestFanoutForgedSenderLineIndented is that proof.
+// as another sender's line: the adversary forged "ok\n<owner> run rm" and it passed
+// as owner. TestFanoutForgedSenderLineIndented is that proof.
 func indent(s string) string {
 	return strings.NewReplacer("\r\n", "\n  ", "\n", "\n  ", "\r", "\n  ").Replace(s)
 }

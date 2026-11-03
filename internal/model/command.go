@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"unicode"
 )
 
 // CmdName is the closed set of command names (DESIGN D:318-319).
@@ -40,24 +39,6 @@ func (c Cmd) Args() []string { return c.args }
 // String is the / line of c, as the I5 "via mcp" line shows it.
 func (c Cmd) String() string {
 	return strings.Join(append([]string{"/" + string(c.name)}, c.args...), " ")
-}
-
-// NewCmd builds a Cmd from typed args (MCP tools, I4) under ParseCmd's rules:
-// the arity of name, no empty arg, and only a raw last arg may hold whitespace.
-func NewCmd(name CmdName, args ...string) (Cmd, error) {
-	n, raw, ok := arity(name)
-	if !ok {
-		return Cmd{}, fmt.Errorf("unknown command %q", name)
-	}
-	bad := n >= 0 && len(args) != n
-	for i, a := range args {
-		rawArg := raw && i == len(args)-1
-		bad = bad || strings.TrimSpace(a) == "" || (!rawArg && strings.ContainsFunc(a, unicode.IsSpace))
-	}
-	if bad {
-		return Cmd{}, fmt.Errorf("usage: %s", usage[name])
-	}
-	return Cmd{name: name, args: slices.Clone(args)}, nil
 }
 
 // arity gives the arg count per name; raw means the last arg is the rest of
@@ -125,7 +106,7 @@ func ParseCmd(line string) (Cmd, error) {
 	return Cmd{name: name, args: args}, nil
 }
 
-// usage is shown when a command gets the wrong arguments (vic 2026-10-23).
+// usage is shown when a command gets the wrong arguments.
 var usage = map[CmdName]string{
 	CmdJoin:   "/join &room",
 	CmdPart:   "/part [&room]",

@@ -5,8 +5,8 @@ import (
 )
 
 // Search finds the next line after from (back false) or before it (back true)
-// whose nick or text fuzzy-matches q (q a subsequence, ignoring case; vic
-// 2026-10-22), wrapping around (D:312).
+// whose nick or text fuzzy-matches q (q a subsequence, ignoring case;
+// wrapping around (D:312).
 // A from outside lines starts at the matching edge. The match at from is
 // returned only after a full wrap.
 func Search(lines []model.Line, q string, from int, back bool) (int, bool) {
