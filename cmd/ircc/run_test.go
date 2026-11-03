@@ -444,13 +444,14 @@ func TestBlockLines(t *testing.T) {
 		{"send to other shown", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "SendMessage", ToolTo: "uds:/run/x/cc-socks/9.sock"}}}, []row{{"alpha", "* SendMessage", true}}},
 		{"send by name shown", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "SendMessage", ToolTo: "ircc-vic"}}}, []row{{"alpha", "* SendMessage", true}}},
 		{"send to user by name hidden", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "SendMessage", ToolTo: "vic"}}}, nil},
-		{"send to room by name hidden", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "SendMessage", ToolTo: "&test"}}}, nil},
+		{"send to room by name hidden", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "SendMessage", ToolTo: "test"}}}, nil},
+		{"send to teammate shown", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "SendMessage", ToolTo: "alice"}}}, []row{{"alpha", "* SendMessage", true}}},
 		{"tool arg shown", transcript.Event{Type: "assistant", Blocks: []transcript.Block{{Kind: transcript.ToolUseBlock, Tool: "Bash", ToolArg: "go test ./..."}}}, []row{{"alpha", "* Bash: go test ./...", true}}},
 		{"no blocks", transcript.Event{Type: "system"}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var got []row
-			for _, l := range blockLines(tc.ev, "alpha", "vic") {
+			for _, l := range blockLines(tc.ev, "alpha", "vic", func(n string) bool { return n == "test" }) {
 				got = append(got, row{l.Nick, l.Text, l.Dim})
 			}
 			if !slices.Equal(got, tc.want) {
@@ -469,7 +470,7 @@ func TestSendRoomRoutesToSay(t *testing.T) {
 	defer r.close()
 	sent := 0
 	r.sendFrame = func(string, []byte) error { sent++; return nil }
-	if err := r.send("&r", "hi"); !errors.Is(err, errNoRooms) || sent != 0 { // say path, not a session lookup
+	if err := r.send("r", "hi"); !errors.Is(err, errNoRooms) || sent != 0 { // say path, not a session lookup
 		t.Fatalf("& send: %v sent=%d", err, sent)
 	}
 	if err := r.send("#r", "hi"); err == nil || errors.Is(err, errNoRooms) { // control: # is a session
@@ -483,7 +484,7 @@ func TestInvitableListsNonMembers(t *testing.T) {
 	defer r.close()
 	appendLine(t, f.transcript, "{\"type\":\"user\",\"permissionMode\":\"default\"}\n")
 	r.onSnapshot(snapshot(t, f))
-	room := rooms.Room{Name: mustName(t, "&r")} // no members yet
+	room := rooms.Room{Name: mustName(t, "r")} // no members yet
 	got := r.invitable(room)
 	if len(got) != 1 || got[0].Member != (rooms.Member{Session: "sid1", Nick: "alpha"}) || got[0].Class != peer.Prompting {
 		t.Fatalf("invitable %+v", got)
@@ -511,7 +512,7 @@ func TestSendLiteralHasNoWrapper(t *testing.T) {
 	if err := json.Unmarshal(got, &fr); err != nil || fr.Message.Content != "/compact keep the API notes" || !strings.HasPrefix(fr.From, "uds:") {
 		t.Fatalf("frame %s err %v", got, err)
 	}
-	if err := r.sendLiteral("&room", "x"); err == nil { // NEG: a room has no Claude socket
+	if err := r.sendLiteral("room", "x"); err == nil { // NEG: a room has no Claude socket
 		t.Fatal("literal to a room: want error")
 	}
 }

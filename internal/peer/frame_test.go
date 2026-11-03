@@ -10,7 +10,7 @@ import (
 
 func TestEncName(t *testing.T) {
 	for _, c := range []struct{ in, want string }{
-		{"&review", "%26review"},
+		{"review", "review"},
 		{"a b", "a%20b"},
 		{"é", "%C3%A9"},
 		{"ok:_/.-9", "ok:_/.-9"},
@@ -28,7 +28,7 @@ func TestParseAddr(t *testing.T) {
 		ok bool
 	}{
 		{"uds:/x/y.sock", true},
-		{"uds:/x%26y.sock", true},
+		{"uds:/xy.sock", true},
 		{"uds:../../x.sock", false},
 		{"uds:/tmp/evil", false},
 		{"uds::", false},
@@ -51,8 +51,8 @@ func TestParseAddr(t *testing.T) {
 }
 
 func TestEndpointPath(t *testing.T) {
-	got, err := EndpointPath("/s", "&review")
-	if err != nil || got != "/s/ircc-%26review.sock" {
+	got, err := EndpointPath("/s", "review")
+	if err != nil || got != "/s/ircc-review.sock" {
 		t.Errorf("got %q, %v", got, err)
 	}
 	for _, c := range [][2]string{{"", "a"}, {"/s", ""}, {"/s", "../a"}, {"/s", "\xff"}, {"/s", `a\b`}, {"/s", strings.Repeat("é", 30)}} {
@@ -247,11 +247,11 @@ func TestParseWrapper(t *testing.T) {
 }
 
 func TestAddrWireRoundTrip(t *testing.T) {
-	a, err := PathAddr("/run/s/ircc-%26r.sock")
+	a, err := PathAddr("/run/s/ircc-r.sock")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.String() != "uds:/run/s/ircc-%2526r.sock" {
+	if a.String() != "uds:/run/s/ircc-r.sock" {
 		t.Fatalf("wire %s", a)
 	}
 	b, err := ParseAddr(a.String())

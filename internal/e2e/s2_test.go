@@ -72,7 +72,7 @@ func TestS2(t *testing.T) {
 	if got := transcript.LastMode(evs); got != "bypassPermissions" {
 		t.Fatalf("LastMode = %q", got)
 	}
-	if !evs[2].Held || evs[2].HeldFrom != "uds:/tmp/x/ircc-%26review.sock" || evs[0].Held {
+	if !evs[2].Held || evs[2].HeldFrom != "uds:/tmp/x/ircc-review.sock" || evs[0].Held {
 		t.Fatalf("held detection: %+v", evs)
 	}
 

@@ -17,7 +17,7 @@ type pickMatch struct {
 }
 
 // fuzzy matches q as a case-insensitive subsequence of s. Runs of matched runes and
-// matches at a word start ("#", "&", "-", "_", ".", "~") score higher.
+// matches at a word start ("#", "-", "_", ".", "~") score higher.
 func fuzzy(q, s string) (pickMatch, bool) {
 	m := pickMatch{name: s}
 	rs, qs := []rune(strings.ToLower(s)), []rune(strings.ToLower(q))

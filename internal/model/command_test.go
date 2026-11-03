@@ -13,10 +13,10 @@ func TestParseCmd(t *testing.T) {
 		args    []string
 		wantErr bool
 	}{
-		{"/join &x", CmdJoin, []string{"&x"}, false},
-		{":join &x", CmdJoin, []string{"&x"}, false},
+		{"/join x", CmdJoin, []string{"x"}, false},
+		{":join x", CmdJoin, []string{"x"}, false},
 		{"/kick bob", CmdKick, []string{"bob"}, false},
-		{"/invite bob &x", CmdInvite, []string{"bob", "&x"}, false},
+		{"/invite bob x", CmdInvite, []string{"bob", "x"}, false},
 		{"/msg bob hi there", CmdMsg, []string{"bob", "hi there"}, false},
 		{"/msg #a  two  spaces", CmdMsg, []string{"#a", "two  spaces"}, false},
 		{"/msg\tbob hi", CmdMsg, []string{"bob", "hi"}, false},
@@ -26,13 +26,13 @@ func TestParseCmd(t *testing.T) {
 		{"/whois bob", CmdWhois, []string{"bob"}, false},
 		{"/quit", CmdQuit, nil, false},
 		{":q", CmdQuit, nil, false},
-		{"/rm &x", CmdClose, []string{"&x"}, false},
+		{"/rm x", CmdClose, []string{"x"}, false},
 		{"/foo", "", nil, true},
 		{"/mode x", "", nil, true}, // /mode dropped (vic 2026-10-22)
 		{"/mode", "", nil, true},
 		{"/thinking on", "", nil, true}, // dropped (vic 2026-10-22)
 		{"/join", "", nil, true},
-		{"/join &a &b", "", nil, true},
+		{"/join a b", "", nil, true},
 		{"/kick", "", nil, true},
 		{"/kick a b", "", nil, true},
 		{"/invite bob", "", nil, true},
@@ -68,7 +68,7 @@ func TestCmdWordsAllParse(t *testing.T) {
 }
 
 func TestUsageOnBadArgs(t *testing.T) {
-	for line, want := range map[string]string{"/join": "usage: /join &room", "/invite dave": "usage: /invite <nick> &room", "/msg": "usage: /msg <nick> <text>"} {
+	for line, want := range map[string]string{"/join": "usage: /join room", "/invite dave": "usage: /invite <nick> room", "/msg": "usage: /msg <nick> <text>"} {
 		if _, err := ParseCmd(line); err == nil || err.Error() != want {
 			t.Errorf("%s: %v", line, err)
 		}

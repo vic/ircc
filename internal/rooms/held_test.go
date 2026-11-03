@@ -24,7 +24,7 @@ func heldEventPID(t *testing.T, level, from, verified string) transcript.Event {
 }
 
 func TestHeldAt(t *testing.T) {
-	const roomSock = "uds:/run/x/ircc-%26review.sock"
+	const roomSock = "uds:/run/x/ircc-review.sock"
 	room, err := peer.ParseAddr(roomSock)
 	if err != nil {
 		t.Fatal(err)

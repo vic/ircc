@@ -106,7 +106,7 @@ func TestAppCommandMsgAndErrors(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
 	a, _ = press(t, a, "i")
-	a = typeText(t, a, "/join &x")
+	a = typeText(t, a, "/join x")
 	a, cmd := press(t, a, "enter")
 	if cmd == nil {
 		t.Fatal("no cmd")
@@ -469,7 +469,7 @@ func TestAppCmdMsgCallsHandlerWithFocusedChannel(t *testing.T) {
 func TestAppRoomsMsgSetsRoomChannels(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
-	next, _ := a.Update(RoomsMsg{"&x", "&y"})
+	next, _ := a.Update(RoomsMsg{"x", "y"})
 	a = next.(App)
 	var got []string
 	for _, c := range a.m.Channels() {
@@ -477,7 +477,7 @@ func TestAppRoomsMsgSetsRoomChannels(t *testing.T) {
 			got = append(got, c.Name)
 		}
 	}
-	if len(got) != 2 || got[0] != "&x" || got[1] != "&y" {
+	if len(got) != 2 || got[0] != "x" || got[1] != "y" {
 		t.Fatalf("rooms %v", got)
 	}
 	next, _ = a.Update(RoomsMsg{})
@@ -491,12 +491,12 @@ func TestAppRoomsMsgSetsRoomChannels(t *testing.T) {
 func TestAppNoLocalEchoForRooms(t *testing.T) {
 	var log []sent
 	a := newApp(t, &log, nil)
-	next, _ := a.Update(RoomsMsg{"&r"})
-	next, _ = next.(App).Update(SendResultMsg{Ch: "&r", Text: "x"})
+	next, _ := a.Update(RoomsMsg{"r"})
+	next, _ = next.(App).Update(SendResultMsg{Ch: "r", Text: "x"})
 	next, _ = next.(App).Update(SendResultMsg{Ch: "#a", Text: "y"}) // control: sessions still echo
 	for _, c := range next.(App).m.Channels() {
 		n := len(c.Lines.All())
-		if (c.Name == "&r" && n != 0) || (c.Name == "#a" && n != 1) {
+		if (c.Name == "r" && n != 0) || (c.Name == "#a" && n != 1) {
 			t.Fatalf("%s has %d lines", c.Name, n)
 		}
 	}
@@ -522,10 +522,10 @@ func TestColonSendsLiteral(t *testing.T) {
 	var lit []sent
 	a = a.WithLiteral(func(ch, text string) error { lit = append(lit, sent{ch, text}); return nil })
 	a, _ = press(t, a, ":")
-	a = typeText(t, a, "/join &x")
+	a = typeText(t, a, "/join x")
 	a, cmd := press(t, a, "enter")
 	a = finish(t, a, cmd)
-	if len(lit) != 1 || lit[0] != (sent{"#a", "/join &x"}) || len(log) != 0 { // literal, not a command, not a wrapped send
+	if len(lit) != 1 || lit[0] != (sent{"#a", "/join x"}) || len(log) != 0 { // literal, not a command, not a wrapped send
 		t.Fatalf("literal %v sends %v", lit, log)
 	}
 	if len(curLines(a)) != 0 { // no local echo: the transcript shows it

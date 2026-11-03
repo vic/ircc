@@ -9,8 +9,8 @@ import (
 )
 
 func TestParseName(t *testing.T) {
-	ok := []string{"&" + strings.Repeat("a", 61), "&review", "&a-b_c", "&ünï"}
-	bad := []string{"&a\u200bb", "&a\u202eb", "&a\ufeffb", "&a\u2066b", "&a,b", "&" + strings.Repeat("a", 62), "&" + strings.Repeat("é", 22), "", "&", "review", `&a"b`, "&a/b", `&a\b`, "&a<b", "&a>b", "&a b", "&a\tb", "&a\x00b", "&a\x7fb", "&a\xffb"}
+	ok := []string{strings.Repeat("a", 64), "review", "a-b_c", "ünï"}
+	bad := []string{"a\u200bb", "a\u202eb", "a\ufeffb", "a\u2066b", "a,b", strings.Repeat("a", 65), strings.Repeat("é", 22), "", "#", "#review", `a"b`, "a/b", `a\b`, "a<b", "a>b", "a b", "a\tb", "a\x00b", "a\x7fb", "a\xffb"}
 	for _, s := range ok {
 		if n, err := ParseName(s); err != nil || n.String() != s {
 			t.Errorf("%q: %v %q", s, err, n.String())
@@ -40,11 +40,11 @@ func TestSaveLoad(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	r := Room{Name: mustName(t, "&review"), Topic: "t", Members: []Member{{Session: "s1", Nick: "bob"}}}
+	r := Room{Name: mustName(t, "review"), Topic: "t", Members: []Member{{Session: "s1", Nick: "bob"}}}
 	if err := Save(dir, r); err != nil {
 		t.Fatal(err)
 	}
-	fi, err := os.Stat(filepath.Join(dir, "%26review.json"))
+	fi, err := os.Stat(filepath.Join(dir, "review.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,13 +62,13 @@ func TestSaveLoad(t *testing.T) {
 
 func TestLoadBadFiles(t *testing.T) {
 	dir := t.TempDir()
-	good := Room{Name: mustName(t, "&ok")}
+	good := Room{Name: mustName(t, "ok")}
 	if err := Save(dir, good); err != nil {
 		t.Fatal(err)
 	}
 	must(t, os.WriteFile(filepath.Join(dir, "bad.json"), []byte(`{`), 0o600))
-	must(t, os.WriteFile(filepath.Join(dir, "inj.json"), []byte(`{"name":"&a\"b"}`), 0o600))
-	must(t, os.WriteFile(filepath.Join(dir, "evil.json"), []byte(`{"name":"&ok"}`), 0o600))
+	must(t, os.WriteFile(filepath.Join(dir, "inj.json"), []byte(`{"name":"a\"b"}`), 0o600))
+	must(t, os.WriteFile(filepath.Join(dir, "evil.json"), []byte(`{"name":"ok"}`), 0o600))
 	must(t, os.WriteFile(filepath.Join(dir, "big.json"), []byte(`{"topic":"`+strings.Repeat("x", 70000)+`"}`), 0o600))
 	must(t, os.Mkdir(filepath.Join(dir, "d.json"), 0o700))
 	must(t, os.WriteFile(filepath.Join(dir, "note.txt"), []byte(`x`), 0o600))
@@ -93,11 +93,11 @@ func must(t *testing.T, err error) {
 
 func TestMemberNickChecked(t *testing.T) {
 	dir := t.TempDir()
-	r := Room{Name: mustName(t, "&m"), Members: []Member{{Session: "s", Nick: `a"b`}}}
+	r := Room{Name: mustName(t, "m"), Members: []Member{{Session: "s", Nick: `a"b`}}}
 	if err := Save(dir, r); err == nil {
 		t.Fatal("Save accepted bad nick")
 	}
-	must(t, os.WriteFile(filepath.Join(dir, "%26m.json"), []byte(`{"name":"&m","members":[{"session":"s","nick":"a<b"}]}`), 0o600))
+	must(t, os.WriteFile(filepath.Join(dir, "m.json"), []byte(`{"name":"m","members":[{"session":"s","nick":"a<b"}]}`), 0o600))
 	if rs, errs := Load(dir); len(rs) != 0 || len(errs) != 1 {
 		t.Fatalf("got %v %v", rs, errs)
 	}

@@ -65,20 +65,20 @@ func TestWithSessions(t *testing.T) {
 
 func TestOrderKeptNewLast(t *testing.T) { // vic 2026-10-22: most recent first, not # before &
 	m := newModel(t)
-	m.chans = append(m.chans, Channel{Name: "&room", Kind: RoomChan})
+	m.chans = append(m.chans, Channel{Name: "room", Kind: RoomChan})
 	m = m.WithSessions([]Session{{PID: 9, Name: "s"}})
-	if got := names(m); got[0] != "&room" || got[1] != "#s" {
+	if got := names(m); got[0] != "room" || got[1] != "#s" {
 		t.Fatalf("order %v", got)
 	}
 }
 
 func TestFocusFollowsChannel(t *testing.T) {
 	m := newModel(t)
-	m.chans = append(m.chans, Channel{Name: "&room", Kind: RoomChan})
-	m = m.WithSessions([]Session{{PID: 9, Name: "s"}}) // [&room #s]: the new session goes last
+	m.chans = append(m.chans, Channel{Name: "room", Kind: RoomChan})
+	m = m.WithSessions([]Session{{PID: 9, Name: "s"}}) // [room #s]: the new session goes last
 	m.cur = 0
 	m = m.WithSessions([]Session{{PID: 9, Name: "s"}, {PID: 8, Name: "t"}})
-	if m.chans[m.cur].Name != "&room" {
+	if m.chans[m.cur].Name != "room" {
 		t.Fatalf("cur=%d on %q", m.cur, m.chans[m.cur].Name)
 	}
 }

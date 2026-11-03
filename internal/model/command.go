@@ -75,7 +75,7 @@ func ParseCmd(line string) (Cmd, error) {
 	case "q":
 		word = string(CmdQuit)
 	case "rm":
-		word = string(CmdClose) // remove a & room: endpoint, saved file and log
+		word = string(CmdClose) // remove a room: endpoint, saved file and log
 	}
 	name := CmdName(word)
 	n, raw, ok := arity(name)
@@ -108,14 +108,14 @@ func ParseCmd(line string) (Cmd, error) {
 
 // usage is shown when a command gets the wrong arguments.
 var usage = map[CmdName]string{
-	CmdJoin:   "/join &room",
-	CmdPart:   "/part [&room]",
-	CmdClose:  "/close [&room] (or /rm)",
-	CmdInvite: "/invite <nick> &room",
+	CmdJoin:   "/join room",
+	CmdPart:   "/part [room]",
+	CmdClose:  "/close [room] (or /rm)",
+	CmdInvite: "/invite <nick> room",
 	CmdKick:   "/kick <nick>",
 	CmdTopic:  "/topic <text>",
 	CmdWhois:  "/whois <nick>",
-	CmdNames:  "/names [&room]",
+	CmdNames:  "/names [room]",
 	CmdMsg:    "/msg <nick> <text>",
 	CmdQuit:   "/quit",
 	CmdHelp:   "/help",

@@ -11,8 +11,8 @@ import (
 	"ircc/internal/registry"
 )
 
-// roomPrefix marks a room name (RFC 2811 local channel, D:169-175).
-const roomPrefix = "&"
+// sessionPrefix marks a session channel; a room name never starts with it (RFC 2811 local channel, D:169-175).
+const sessionPrefix = "#"
 
 // Endpoint is a Claude socket ircc owns: a listener plus a registry entry (D:169-195).
 // The caller owns the keeper's spawning (rooms.SpawnKeeper from a locked OS thread,
@@ -32,8 +32,8 @@ type Endpoint struct {
 // The name is a parameter on purpose: the clash with a session of the same name is
 // an open gate (GAP-6).
 func OpenUser(socksDir, sessDir, procRoot, user, pidDomain string) (*Endpoint, error) {
-	if user == "" || strings.HasPrefix(user, roomPrefix) {
-		return nil, fmt.Errorf("peer: user endpoint name %q: want non-empty without %q", user, roomPrefix)
+	if user == "" || strings.HasPrefix(user, sessionPrefix) {
+		return nil, fmt.Errorf("peer: user endpoint name %q: want non-empty without %q", user, sessionPrefix)
 	}
 	if registry.HasOwn(sessDir, os.Getpid()) {
 		return nil, fmt.Errorf("peer: user endpoint %q: ircc already has an entry for pid %d", user, os.Getpid())
@@ -41,7 +41,7 @@ func OpenUser(socksDir, sessDir, procRoot, user, pidDomain string) (*Endpoint, e
 	return open(socksDir, sessDir, procRoot, user, os.Getpid(), nil, pidDomain)
 }
 
-// OpenRoom opens the endpoint of room name (&<room>); the entry takes keeper's pid.
+// OpenRoom opens the endpoint of room name; the entry takes keeper's pid.
 func OpenRoom(socksDir, sessDir, procRoot, name string, keeper *os.Process, pidDomain string) (*Endpoint, error) {
 	ep, err := openRoom(socksDir, sessDir, procRoot, name, keeper, pidDomain)
 	if err != nil && keeper != nil {
@@ -51,8 +51,8 @@ func OpenRoom(socksDir, sessDir, procRoot, name string, keeper *os.Process, pidD
 }
 
 func openRoom(socksDir, sessDir, procRoot, name string, keeper *os.Process, pidDomain string) (*Endpoint, error) {
-	if !strings.HasPrefix(name, roomPrefix) || len(name) == len(roomPrefix) {
-		return nil, fmt.Errorf("peer: room name %q: want %q<room>", name, roomPrefix)
+	if name == "" || strings.HasPrefix(name, sessionPrefix) {
+		return nil, fmt.Errorf("peer: room name %q: want a name without leading %q", name, sessionPrefix)
 	}
 	if keeper == nil || keeper.Pid <= 0 {
 		return nil, errors.New("peer: room endpoint needs a keeper process")

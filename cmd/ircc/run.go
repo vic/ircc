@@ -394,7 +394,7 @@ func (r *runner) poll() {
 			case promptOther:
 				t.reply = false
 			}
-			for _, l := range blockLines(ev, j.e.Name, r.user) {
+			for _, l := range blockLines(ev, j.e.Name, r.user, r.isRoom) {
 				if t.reply && l.Kind == model.Transcript && ev.Type == "assistant" {
 					l.Kind = model.Chat // an answer to our line: m (mentions) shows it
 				}
@@ -450,7 +450,7 @@ func (r *runner) liveCopy() []registry.Entry {
 // send writes one frame to the session behind channel ch. The permission class
 // comes from the last mode seen; unknown mode fails closed.
 func (r *runner) send(ch, text string) error {
-	if strings.HasPrefix(ch, "&") {
+	if !strings.HasPrefix(ch, "#") {
 		return r.say(ch, text) // fans out and echoes the line itself (logged to disk)
 	}
 	e, class, ep, err := r.target(ch)
@@ -683,7 +683,7 @@ func runTUI(o options, opts ...tea.ProgramOption) int {
 // results hidden, a failed tool result as a dim "! tool error", user text from user.
 // Sidechain events speak as <agentId>@<session> (m15).
 // A tool_use addressed to an ircc endpoint is hidden: the endpoint already shows it (D:282-283).
-func blockLines(ev transcript.Event, session, user string) []model.Line {
+func blockLines(ev transcript.Event, session, user string, isRoom func(string) bool) []model.Line {
 	nick := session
 	if ev.Sidechain && ev.AgentID != "" {
 		nick = ev.AgentID + "@" + session
@@ -702,7 +702,7 @@ func blockLines(ev transcript.Event, session, user string) []model.Line {
 			out = append(out, model.Line{At: now, Nick: user, Text: b.Text, Dim: strings.HasPrefix(b.Text, "<"), Kind: model.Transcript}) // injected tags, not typed
 		case b.Kind == transcript.TextBlock:
 			out = append(out, model.Line{At: now, Nick: nick, Text: b.Text, Kind: model.Transcript})
-		case b.Kind == transcript.ToolUseBlock && (toIRCC(b.ToolTo) || b.ToolTo == user || strings.HasPrefix(b.ToolTo, "&")): // reply shows via the endpoint
+		case b.Kind == transcript.ToolUseBlock && (toIRCC(b.ToolTo) || b.ToolTo == user || isRoom(b.ToolTo)): // reply shows via the endpoint
 			continue
 		case b.Kind == transcript.ToolUseBlock:
 			out = append(out, model.Line{At: now, Nick: nick, Text: toolText(b), Dim: true, Kind: model.Tool})

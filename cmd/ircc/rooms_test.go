@@ -65,23 +65,23 @@ func (f rtFix) entries(t *testing.T) []registry.Entry {
 
 func TestRoomRTOpenClose(t *testing.T) {
 	f := newRT(t)
-	name := mustName(t, "&review")
+	name := mustName(t, "review")
 	if err := f.rt.open(name, ""); err != nil {
 		t.Fatal(err)
 	}
 	es := f.entries(t)
-	sock, _ := peer.EndpointPath(f.socks, "&review")
-	if len(es) != 1 || es[0].Name != "&review" || es[0].SocketPath != sock {
+	sock, _ := peer.EndpointPath(f.socks, "review")
+	if len(es) != 1 || es[0].Name != "review" || es[0].SocketPath != sock {
 		t.Fatalf("entries %+v", es)
 	}
 	keeper := es[0].PID
 	if keeper == os.Getpid() {
 		t.Fatal("room entry carries ircc's pid, not a keeper's")
 	}
-	if _, err := os.Stat(filepath.Join(f.dir, peer.EncName("&review")+".json")); err != nil {
+	if _, err := os.Stat(filepath.Join(f.dir, peer.EncName("review")+".json")); err != nil {
 		t.Fatalf("room file: %v", err)
 	}
-	if !reflect.DeepEqual(f.rt.names(), []string{"&review"}) {
+	if !reflect.DeepEqual(f.rt.names(), []string{"review"}) {
 		t.Fatalf("names %v", f.rt.names())
 	}
 	if err := f.rt.open(name, ""); err != nil || *f.spawned != 1 { // idempotent: no second keeper
@@ -91,7 +91,7 @@ func TestRoomRTOpenClose(t *testing.T) {
 	if err := rooms.AppendLine(f.dir, name, rooms.LogLine{Time: time.Now(), Nick: "vic", Text: "hi"}); err != nil {
 		t.Fatal(err)
 	}
-	logFile := filepath.Join(f.dir, peer.EncName("&review")+".log")
+	logFile := filepath.Join(f.dir, peer.EncName("review")+".log")
 	if _, err := os.Stat(logFile); err != nil { // control: the log exists before close
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestRoomRTOpenClose(t *testing.T) {
 	if es := f.entries(t); len(es) != 0 {
 		t.Fatalf("entry left: %+v", es)
 	}
-	for _, p := range []string{sock, filepath.Join(f.dir, peer.EncName("&review")+".json"), logFile} {
+	for _, p := range []string{sock, filepath.Join(f.dir, peer.EncName("review")+".json"), logFile} {
 		if _, err := os.Lstat(p); err == nil {
 			t.Errorf("%s still exists", p)
 		}
@@ -117,7 +117,7 @@ func TestRoomRTOpenClose(t *testing.T) {
 
 func TestRoomRTInvalidNameSpawnsNoKeeper(t *testing.T) {
 	f := newRT(t)
-	if _, err := rooms.ParseName(`&a"b`); err == nil {
+	if _, err := rooms.ParseName(`a"b`); err == nil {
 		t.Fatal("ParseName accepted a quote")
 	}
 	if err := f.rt.open(rooms.Name{}, ""); err == nil { // the only way past ParseName is the zero value
@@ -126,7 +126,7 @@ func TestRoomRTInvalidNameSpawnsNoKeeper(t *testing.T) {
 	if *f.spawned != 0 {
 		t.Fatalf("spawned %d keepers", *f.spawned)
 	}
-	if err := f.rt.closeRoom(mustName(t, "&nope")); err == nil {
+	if err := f.rt.closeRoom(mustName(t, "nope")); err == nil {
 		t.Fatal("closing an unopened room succeeded")
 	}
 }
@@ -136,7 +136,7 @@ func TestRoomRTLoadOpensSavedRooms(t *testing.T) {
 	if err := os.MkdirAll(f.dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for _, n := range []string{"&a", "&b"} {
+	for _, n := range []string{"a", "b"} {
 		if err := rooms.Save(f.dir, rooms.Room{Name: mustName(t, n), Topic: "t"}); err != nil {
 			t.Fatal(err)
 		}
@@ -148,10 +148,10 @@ func TestRoomRTLoadOpensSavedRooms(t *testing.T) {
 	if len(errs) != 1 { // the bad file; the good rooms still open
 		t.Fatalf("errs %v", errs)
 	}
-	if !reflect.DeepEqual(f.rt.names(), []string{"&a", "&b"}) || len(f.entries(t)) != 2 {
+	if !reflect.DeepEqual(f.rt.names(), []string{"a", "b"}) || len(f.entries(t)) != 2 {
 		t.Fatalf("names %v entries %d", f.rt.names(), len(f.entries(t)))
 	}
-	r, ok := f.rt.room(mustName(t, "&a"))
+	r, ok := f.rt.room(mustName(t, "a"))
 	if !ok || r.Topic != "t" {
 		t.Fatalf("room %+v %v", r, ok)
 	}
@@ -160,7 +160,7 @@ func TestRoomRTLoadOpensSavedRooms(t *testing.T) {
 func TestRoomRTSpawnRunsOnOneLockedThread(t *testing.T) {
 	f := newRT(t)
 	// both keepers come through the single spawner goroutine; shutdown stops it
-	for _, n := range []string{"&a", "&b"} {
+	for _, n := range []string{"a", "b"} {
 		if err := f.rt.open(mustName(t, n), ""); err != nil {
 			t.Fatal(err)
 		}
@@ -176,14 +176,14 @@ func TestRoomRTSpawnRunsOnOneLockedThread(t *testing.T) {
 	if len(f.entries(t)) != 0 { // shutdown closed every room endpoint
 		t.Fatal("entries left after shutdown")
 	}
-	if err := f.rt.open(mustName(t, "&c"), ""); !errors.Is(err, errShutdown) { // no spawner: fails, does not hang
+	if err := f.rt.open(mustName(t, "c"), ""); !errors.Is(err, errShutdown) { // no spawner: fails, does not hang
 		t.Fatalf("open after shutdown: %v", err)
 	}
 }
 
 func TestRoomRTSetRoom(t *testing.T) {
 	f := newRT(t)
-	name := mustName(t, "&s")
+	name := mustName(t, "s")
 	if err := f.rt.open(name, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestRoomRTSetRoom(t *testing.T) {
 		t.Fatalf("memory changed on failed save: %+v", got)
 	}
 	// NEG: a room that is not open is not resurrected
-	if err := f.rt.setRoom(rooms.Room{Name: mustName(t, "&ghost")}); err == nil {
+	if err := f.rt.setRoom(rooms.Room{Name: mustName(t, "ghost")}); err == nil {
 		t.Fatal("setRoom of an unopened room succeeded")
 	}
 }

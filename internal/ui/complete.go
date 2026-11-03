@@ -21,7 +21,7 @@ func lastWord(line string) (head, word string) {
 }
 
 // candidates for the last word of line: command words for the first word of a /
-// line, channels for & and #, nicks (with the @ kept) for the rest. Prefix match,
+// line, channels for #, rooms by bare name, nicks (with the @ kept) for the rest. Prefix match,
 // in the order of the sources: channels most recent first, nicks as listed.
 func candidates(line string, chans, nicks []string) []string {
 	head, word := lastWord(line)
@@ -31,7 +31,7 @@ func candidates(line string, chans, nicks []string) []string {
 		for _, w := range model.CmdWords {
 			pool = append(pool, "/"+w)
 		}
-	case strings.HasPrefix(word, "&") || strings.HasPrefix(word, "#"):
+	case strings.HasPrefix(word, "#"):
 		pool = chans
 	case strings.HasPrefix(word, "@"):
 		for _, n := range nicks {
@@ -39,6 +39,11 @@ func candidates(line string, chans, nicks []string) []string {
 		}
 	case word != "":
 		pool = nicks
+		for _, c := range chans { // a room has no #: its bare name completes as a word
+			if !strings.HasPrefix(c, "#") {
+				pool = append(pool, c)
+			}
+		}
 	}
 	var out []string
 	for _, c := range pool {

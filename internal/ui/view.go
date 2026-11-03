@@ -478,8 +478,8 @@ var helpSections = []struct {
 		{"/cmd", "a line that starts with / is an ircc command"},
 	}},
 	{"COMMANDS", [][2]string{
-		{"/join &room", "open or create a room"},
-		{"/invite nick &room", "add a session; its nick is its channel without #"},
+		{"/join room", "open or create a room"},
+		{"/invite nick room", "add a session; its nick is its channel without #"},
 		{"/kick nick", "remove a member"},
 		{"/part /rm", "hide / remove a room (/rm = /close)"},
 		{"/topic /names", "room topic, members"},
